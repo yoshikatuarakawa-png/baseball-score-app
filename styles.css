@@ -1,0 +1,779 @@
+:root {
+  color-scheme: light;
+  --bg: #f6f4ef;
+  --panel: #ffffff;
+  --ink: #1e2528;
+  --muted: #667076;
+  --line: #d9ded9;
+  --field: #f9faf8;
+  --green: #166b4f;
+  --green-dark: #0c4e3a;
+  --red: #b6423c;
+  --gold: #c7922b;
+  --shadow: 0 18px 55px rgba(35, 44, 39, 0.12);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family:
+    "Segoe UI",
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Hiragino Sans",
+    "Yu Gothic",
+    sans-serif;
+  background:
+    radial-gradient(circle at 50% 88%, rgba(199, 146, 43, 0.36) 0 7%, transparent 7.5%),
+    linear-gradient(45deg, transparent 44%, rgba(255, 255, 255, 0.42) 44.5% 45.5%, transparent 46%),
+    linear-gradient(-45deg, transparent 44%, rgba(255, 255, 255, 0.42) 44.5% 45.5%, transparent 46%),
+    linear-gradient(180deg, rgba(15, 111, 78, 0.58), rgba(246, 244, 239, 0.95) 58%),
+    var(--bg);
+  background-attachment: fixed;
+  background-position: center;
+  background-size: cover;
+  color: var(--ink);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+.app {
+  width: min(1120px, calc(100% - 28px));
+  margin: 32px auto;
+  padding: 24px;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--line);
+}
+
+.eyebrow {
+  margin: 0 0 4px;
+  color: var(--green);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+h1 {
+  margin: 0;
+  font-size: clamp(1.65rem, 2.8vw, 2.45rem);
+  line-height: 1.15;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+button {
+  min-height: 42px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 0 16px;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.primary-button {
+  background: var(--green);
+  color: #fff;
+}
+
+.primary-button:hover {
+  background: var(--green-dark);
+}
+
+.ghost-button {
+  background: #fff;
+  border-color: var(--line);
+  color: var(--ink);
+}
+
+.ghost-button:hover {
+  border-color: var(--green);
+}
+
+.quick-nav {
+  position: sticky;
+  top: 0;
+  z-index: 8;
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  margin: 14px -4px 0;
+  padding: 4px;
+  background: rgba(255, 255, 255, 0.94);
+}
+
+.quick-nav a {
+  flex: 0 0 auto;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--green-dark);
+  padding: 8px 12px;
+  font-size: 0.88rem;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.game-meta {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin: 22px 0;
+}
+
+label {
+  display: grid;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+input,
+select,
+textarea {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--field);
+  color: var(--ink);
+  outline: none;
+}
+
+input {
+  min-height: 42px;
+  padding: 8px 10px;
+}
+
+select {
+  min-height: 42px;
+  padding: 8px 10px;
+}
+
+textarea {
+  resize: vertical;
+  padding: 12px;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--green);
+  box-shadow: 0 0 0 3px rgba(22, 107, 79, 0.14);
+}
+
+.scoreboard-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.scoreboard {
+  width: 100%;
+  min-width: 820px;
+  border-collapse: collapse;
+}
+
+th,
+td {
+  border-bottom: 1px solid var(--line);
+  border-right: 1px solid var(--line);
+  padding: 8px;
+  text-align: center;
+}
+
+th:last-child,
+td:last-child {
+  border-right: 0;
+}
+
+tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+th {
+  background: #eef3ed;
+  color: #31413b;
+  font-size: 0.84rem;
+}
+
+td:first-child,
+th:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  min-width: 172px;
+  background: #fff;
+  text-align: left;
+}
+
+th:first-child {
+  background: #eef3ed;
+}
+
+.team-name {
+  font-weight: 800;
+}
+
+.score-input {
+  width: 54px;
+  min-height: 38px;
+  padding: 4px;
+  text-align: center;
+}
+
+.team-input {
+  font-weight: 800;
+}
+
+.total {
+  min-width: 52px;
+  color: var(--green);
+  font-weight: 900;
+  font-size: 1.05rem;
+}
+
+.stat-input {
+  width: 58px;
+  min-height: 38px;
+  padding: 4px;
+  text-align: center;
+}
+
+.summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin: 18px 0;
+}
+
+.summary > div {
+  min-height: 72px;
+  border-left: 5px solid var(--green);
+  border-radius: 6px;
+  background: #f7faf7;
+  padding: 12px 14px;
+}
+
+.summary .label {
+  display: block;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.summary strong {
+  display: block;
+  margin-top: 5px;
+  font-size: 1.3rem;
+}
+
+.winner {
+  color: var(--green);
+}
+
+.tie {
+  color: var(--gold);
+}
+
+.notes {
+  margin-top: 18px;
+}
+
+.panel {
+  margin-top: 22px;
+  padding-top: 22px;
+  border-top: 1px solid var(--line);
+}
+
+.section-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+h2 {
+  margin: 0;
+  font-size: 1.35rem;
+}
+
+.hint {
+  max-width: 360px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.5;
+  text-align: right;
+}
+
+.plate-form {
+  display: grid;
+  grid-template-columns: 1.35fr 1fr 0.65fr 0.9fr;
+  gap: 14px;
+  align-items: end;
+}
+
+.wide-field {
+  grid-column: span 3;
+}
+
+.add-button {
+  width: 100%;
+}
+
+.table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.records-table {
+  width: 100%;
+  min-width: 1180px;
+  border-collapse: collapse;
+}
+
+.lineup-table,
+.games-table,
+.pitch-table {
+  width: 100%;
+  min-width: 760px;
+  border-collapse: collapse;
+}
+
+.lineup-table th:first-child,
+.lineup-table td:first-child {
+  min-width: 68px;
+  text-align: center;
+}
+
+.lineup-table td:nth-child(2) {
+  min-width: 180px;
+}
+
+.lineup-table td:nth-child(3) {
+  min-width: 140px;
+}
+
+.lineup-table input,
+.lineup-table select {
+  min-height: 36px;
+  padding: 5px 8px;
+}
+
+.pitch-controls {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) 2fr auto auto;
+  gap: 14px;
+  align-items: end;
+  margin-bottom: 14px;
+}
+
+.pitch-buttons {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.pitch-button {
+  min-height: 52px;
+  color: #fff;
+}
+
+.pitch-button.strike {
+  background: var(--green);
+}
+
+.pitch-button.ball {
+  background: #315a9b;
+}
+
+.pitch-button.foul {
+  background: var(--gold);
+}
+
+.current-count {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  align-items: stretch;
+  margin-bottom: 14px;
+}
+
+.current-count div {
+  border-radius: 6px;
+  background: #f2f6f4;
+  padding: 12px;
+  text-align: center;
+}
+
+.current-count span {
+  display: block;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.current-count strong {
+  display: block;
+  color: var(--ink);
+  font-size: 2rem;
+  line-height: 1.1;
+}
+
+.current-count p {
+  grid-column: 1 / -1;
+  margin: 0;
+  border-left: 5px solid var(--gold);
+  border-radius: 6px;
+  background: #fff9ec;
+  color: #6d4b0d;
+  padding: 10px 12px;
+  font-weight: 800;
+}
+
+.pitch-totals {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.pitch-totals div {
+  border-left: 5px solid var(--green);
+  border-radius: 6px;
+  background: #f7faf7;
+  padding: 10px 12px;
+}
+
+.pitch-totals span {
+  display: block;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+.pitch-totals strong {
+  display: block;
+  color: var(--green);
+  font-size: 1.35rem;
+}
+
+.records-table th:first-child,
+.records-table td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  min-width: 130px;
+  background: #fff;
+  text-align: left;
+}
+
+.records-table th:first-child {
+  background: #eef3ed;
+}
+
+.sort-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  min-height: 28px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  padding: 2px 4px;
+  font-size: inherit;
+}
+
+.sort-button:hover,
+.sort-button.active {
+  background: rgba(22, 107, 79, 0.1);
+  color: var(--green-dark);
+}
+
+.sort-button::after {
+  content: "↕";
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.sort-button.active.desc::after {
+  content: "↓";
+  color: var(--green);
+}
+
+.sort-button.active.asc::after {
+  content: "↑";
+  color: var(--green);
+}
+
+.records-table td {
+  font-size: 0.9rem;
+}
+
+.records-table .empty-row td {
+  color: var(--muted);
+  text-align: center;
+}
+
+.games-table td {
+  font-size: 0.9rem;
+}
+
+.detail-button {
+  min-height: 32px;
+  border-color: var(--line);
+  background: #fff;
+  color: var(--green-dark);
+  padding: 0 10px;
+}
+
+.hidden {
+  display: none;
+}
+
+.game-detail-content {
+  display: grid;
+  gap: 16px;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.detail-grid div {
+  border-radius: 6px;
+  background: #f7faf7;
+  padding: 10px 12px;
+}
+
+.detail-grid span {
+  display: block;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+.detail-grid strong {
+  display: block;
+  margin-top: 3px;
+  color: var(--ink);
+}
+
+.detail-section h3 {
+  margin: 0 0 8px;
+  font-size: 1rem;
+}
+
+.stat-cards {
+  display: flex;
+  gap: 10px;
+}
+
+.stat-cards div {
+  min-width: 84px;
+  border-radius: 6px;
+  background: #f7faf7;
+  padding: 8px 10px;
+  text-align: right;
+}
+
+.stat-cards span {
+  display: block;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+.stat-cards strong {
+  display: block;
+  color: var(--green);
+  font-size: 1.15rem;
+}
+
+@media (max-width: 720px) {
+  body {
+    background-attachment: scroll;
+  }
+
+  .app {
+    width: 100%;
+    min-height: 100vh;
+    margin: 0;
+    padding: 12px;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .topbar {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 12px;
+    padding-bottom: 12px;
+  }
+
+  .actions {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .actions button {
+    width: 100%;
+    min-height: 46px;
+    padding: 0 8px;
+  }
+
+  .game-meta,
+  .summary,
+  .plate-form,
+  .pitch-controls,
+  .pitch-totals,
+  .current-count,
+  .detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .section-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .hint {
+    text-align: left;
+  }
+
+  .wide-field {
+    grid-column: auto;
+  }
+
+  .stat-cards {
+    width: 100%;
+    overflow-x: auto;
+  }
+
+  .stat-cards div {
+    flex: 0 0 112px;
+  }
+
+  .panel {
+    margin-top: 18px;
+    padding-top: 18px;
+    scroll-margin-top: 54px;
+  }
+
+  .scoreboard-wrap {
+    scroll-margin-top: 54px;
+  }
+
+  .scoreboard {
+    min-width: 690px;
+  }
+
+  th,
+  td {
+    padding: 6px;
+  }
+
+  td:first-child,
+  th:first-child {
+    min-width: 128px;
+  }
+
+  .score-input {
+    width: 42px;
+  }
+
+  .stat-input {
+    width: 48px;
+  }
+
+  .lineup-table,
+  .pitch-table,
+  .games-table {
+    min-width: 620px;
+  }
+
+  .records-table {
+    min-width: 1040px;
+  }
+
+  .pitch-buttons {
+    grid-template-columns: 1fr;
+  }
+
+  .pitch-button {
+    min-height: 64px;
+    font-size: 1.08rem;
+  }
+
+  .current-count {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .current-count strong {
+    font-size: 2.2rem;
+  }
+
+  .pitch-totals {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .plate-form {
+    gap: 10px;
+  }
+
+  .add-button {
+    min-height: 58px;
+    font-size: 1.05rem;
+  }
+
+  input,
+  select {
+    min-height: 46px;
+    font-size: 16px;
+  }
+
+  textarea {
+    font-size: 16px;
+  }
+}

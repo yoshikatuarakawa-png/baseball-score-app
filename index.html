@@ -1,0 +1,337 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#166b4f" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="野球スコア" />
+    <title>野球スコア入力</title>
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="manifest" href="manifest.webmanifest" />
+  </head>
+  <body>
+    <main class="app">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Baseball Score</p>
+          <h1>野球スコア入力</h1>
+        </div>
+        <div class="actions">
+          <button id="exportButton" class="ghost-button" type="button">CSV出力</button>
+          <button id="saveGameButton" class="ghost-button" type="button">試合保存</button>
+          <button id="newGameButton" class="ghost-button" type="button">新しい試合</button>
+          <button id="clearButton" class="ghost-button" type="button">クリア</button>
+          <button id="sampleButton" class="primary-button" type="button">サンプル</button>
+        </div>
+      </header>
+
+      <nav class="quick-nav" aria-label="スマホ用ショートカット">
+        <a href="#scoreSection">スコア</a>
+        <a href="#lineupSection">打順</a>
+        <a href="#pitchSection">投球</a>
+        <a href="#plateSection">打席</a>
+        <a href="#summarySection">成績</a>
+      </nav>
+
+      <section class="game-meta" aria-label="試合情報">
+        <label>
+          日付
+          <input id="gameDate" type="date" />
+        </label>
+        <label>
+          球場
+          <input id="venue" type="text" placeholder="例: 東京ドーム" />
+        </label>
+        <label>
+          大会・試合名
+          <input id="gameName" type="text" placeholder="例: 練習試合" />
+        </label>
+      </section>
+
+      <section id="scoreSection" class="scoreboard-wrap" aria-label="スコアボード">
+        <table class="scoreboard">
+          <thead>
+            <tr>
+              <th scope="col">チーム</th>
+              <th scope="col">1</th>
+              <th scope="col">2</th>
+              <th scope="col">3</th>
+              <th scope="col">4</th>
+              <th scope="col">5</th>
+              <th scope="col">6</th>
+              <th scope="col">7</th>
+              <th scope="col">8</th>
+              <th scope="col">9</th>
+              <th scope="col">R</th>
+              <th scope="col">H</th>
+              <th scope="col">E</th>
+            </tr>
+          </thead>
+          <tbody id="scoreBody"></tbody>
+        </table>
+      </section>
+
+      <section class="summary" aria-label="試合結果">
+        <div>
+          <span class="label">結果</span>
+          <strong id="resultText">未入力</strong>
+        </div>
+        <div>
+          <span class="label">合計得点</span>
+          <strong id="totalRuns">0 - 0</strong>
+        </div>
+      </section>
+
+      <section class="notes">
+        <label>
+          メモ
+          <textarea id="notes" rows="5" placeholder="投手、長打、試合の流れなど"></textarea>
+        </label>
+      </section>
+
+      <section id="lineupSection" class="panel lineup-panel" aria-label="打順とポジション">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Lineup</p>
+            <h2>打順・ポジション</h2>
+          </div>
+          <p class="hint">ここに入れた選手は打席入力の候補にも出ます。</p>
+        </div>
+        <div class="table-wrap">
+          <table class="lineup-table">
+            <thead>
+              <tr>
+                <th>打順</th>
+                <th>選手</th>
+                <th>ポジション</th>
+                <th>背番号</th>
+                <th>メモ</th>
+              </tr>
+            </thead>
+            <tbody id="lineupBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="pitchSection" class="panel pitch-panel" aria-label="投球数カウント">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Pitch Count</p>
+            <h2>投球数</h2>
+          </div>
+          <p class="hint">1球ごとに押すと、投手別の累計に反映されます。</p>
+        </div>
+
+        <div class="pitch-controls">
+          <label>
+            投手
+            <input id="pitcherName" type="text" list="playerList" placeholder="例: ユリナ" />
+          </label>
+          <div class="pitch-buttons" aria-label="球種カウント">
+            <button class="pitch-button strike" type="button" data-pitch="strike">ストライク</button>
+            <button class="pitch-button ball" type="button" data-pitch="ball">ボール</button>
+            <button class="pitch-button foul" type="button" data-pitch="foul">ファール</button>
+          </div>
+          <button id="undoPitchButton" class="ghost-button" type="button">1球戻す</button>
+          <button id="resetCountButton" class="ghost-button" type="button">次の打者</button>
+        </div>
+
+        <div class="current-count" aria-label="現在のカウント">
+          <div><span>ボール</span><strong id="currentBalls">0</strong></div>
+          <div><span>ストライク</span><strong id="currentStrikes">0</strong></div>
+          <div><span>ファール</span><strong id="currentFouls">0</strong></div>
+          <div><span>この打席</span><strong id="currentPitchTotal">0</strong></div>
+          <p id="countStatus">カウント入力待ち</p>
+        </div>
+
+        <div class="pitch-totals">
+          <div><span>この試合</span><strong id="gamePitchTotal">0</strong></div>
+          <div><span>ストライク</span><strong id="gameStrikeTotal">0</strong></div>
+          <div><span>ボール</span><strong id="gameBallTotal">0</strong></div>
+          <div><span>ファール</span><strong id="gameFoulTotal">0</strong></div>
+        </div>
+
+        <div class="table-wrap">
+          <table class="pitch-table">
+            <thead>
+              <tr>
+                <th>投手</th>
+                <th>投球数</th>
+                <th>ストライク</th>
+                <th>ボール</th>
+                <th>ファール</th>
+              </tr>
+            </thead>
+            <tbody id="pitchSummaryBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="plateSection" class="panel entry-panel" aria-label="打席入力">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Player Record</p>
+            <h2>打席入力</h2>
+          </div>
+          <p class="hint">Excelと同じように、1打席ずつ記録します。</p>
+        </div>
+
+        <form id="plateForm" class="plate-form">
+          <label>
+            打者
+            <input id="playerName" type="text" list="playerList" placeholder="例: ハルカ" required />
+            <datalist id="playerList"></datalist>
+          </label>
+          <label>
+            結果
+            <select id="plateResult">
+              <option value="single">単打</option>
+              <option value="double">二塁打</option>
+              <option value="triple">三塁打</option>
+              <option value="homerun">本塁打</option>
+              <option value="out">凡退</option>
+              <option value="swingK">空振り三振</option>
+              <option value="lookK">見逃し三振</option>
+              <option value="walk">四球</option>
+              <option value="hbp">死球</option>
+              <option value="sac">犠打</option>
+            </select>
+          </label>
+          <label>
+            盗塁
+            <input id="steals" type="number" min="0" max="9" value="0" />
+          </label>
+          <label>
+            盗塁 1・3塁以外
+            <input id="stealsOther" type="number" min="0" max="9" value="0" />
+          </label>
+          <label class="wide-field">
+            メモ
+            <input id="plateMemo" type="text" placeholder="例: 右中間二塁打" />
+          </label>
+          <button class="primary-button add-button" type="submit">打席を追加</button>
+        </form>
+      </section>
+
+      <section id="summarySection" class="panel" aria-label="選手別集計">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Summary</p>
+            <h2>選手別成績</h2>
+          </div>
+          <div class="stat-cards">
+            <div><span>基データ</span><strong id="basePa">0</strong></div>
+            <div><span>追加</span><strong id="addedPa">0</strong></div>
+            <div><span>通算打席</span><strong id="allPa">0</strong></div>
+            <div><span>安打</span><strong id="allHits">0</strong></div>
+            <div><span>出塁</span><strong id="allOb">0</strong></div>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table class="records-table">
+            <thead>
+              <tr>
+                <th><button class="sort-button" type="button" data-sort="name">打者</button></th>
+                <th><button class="sort-button" type="button" data-sort="avg">打率</button></th>
+                <th><button class="sort-button" type="button" data-sort="obp">出塁率</button></th>
+                <th><button class="sort-button" type="button" data-sort="ops">OPS</button></th>
+                <th><button class="sort-button" type="button" data-sort="ob">出塁回数</button></th>
+                <th><button class="sort-button" type="button" data-sort="pa">打席</button></th>
+                <th><button class="sort-button" type="button" data-sort="ab">打数</button></th>
+                <th><button class="sort-button" type="button" data-sort="hit">安打</button></th>
+                <th><button class="sort-button" type="button" data-sort="double">二塁打</button></th>
+                <th><button class="sort-button" type="button" data-sort="triple">三塁打</button></th>
+                <th><button class="sort-button" type="button" data-sort="hr">本塁打</button></th>
+                <th><button class="sort-button" type="button" data-sort="bb">四球</button></th>
+                <th><button class="sort-button" type="button" data-sort="hbp">死球</button></th>
+                <th><button class="sort-button" type="button" data-sort="k">三振</button></th>
+                <th><button class="sort-button" type="button" data-sort="kRate">三振率</button></th>
+                <th><button class="sort-button" type="button" data-sort="steal">盗塁</button></th>
+              </tr>
+            </thead>
+            <tbody id="playerSummaryBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel" aria-label="打席履歴">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Log</p>
+            <h2>打席履歴</h2>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table class="records-table">
+            <thead>
+              <tr>
+                <th>試合</th>
+                <th>打順</th>
+                <th>打者</th>
+                <th>守備</th>
+                <th>結果</th>
+                <th>打席</th>
+                <th>打数</th>
+                <th>安打</th>
+                <th>三振</th>
+                <th>四球</th>
+                <th>死球</th>
+                <th>犠打</th>
+                <th>盗塁</th>
+                <th>出塁</th>
+                <th>メモ</th>
+              </tr>
+            </thead>
+            <tbody id="plateLogBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel" aria-label="試合履歴">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Games</p>
+            <h2>試合履歴</h2>
+          </div>
+          <p class="hint">試合保存を押すと、スコアとメモを残せます。</p>
+        </div>
+        <div class="table-wrap">
+          <table class="games-table">
+            <thead>
+              <tr>
+                <th>日付</th>
+                <th>試合</th>
+                <th>スコア</th>
+                <th>球場</th>
+                <th>投球数</th>
+                <th>打席記録</th>
+                <th>詳細</th>
+              </tr>
+            </thead>
+            <tbody id="gameHistoryBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="gameDetailPanel" class="panel game-detail hidden" aria-label="試合詳細">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Game Detail</p>
+            <h2 id="gameDetailTitle">試合詳細</h2>
+          </div>
+          <button id="closeGameDetailButton" class="ghost-button" type="button">閉じる</button>
+        </div>
+        <div id="gameDetailContent" class="game-detail-content"></div>
+      </section>
+    </main>
+
+    <script src="base-data.js"></script>
+    <script src="app.js"></script>
+    <script>
+      if ("serviceWorker" in navigator && location.protocol !== "file:") {
+        navigator.serviceWorker.register("service-worker.js");
+      }
+    </script>
+  </body>
+</html>

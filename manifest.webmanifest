@@ -1,0 +1,9 @@
+{
+  "name": "野球スコア入力",
+  "short_name": "野球スコア",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#f6f4ef",
+  "theme_color": "#166b4f",
+  "icons": []
+}
