@@ -110,6 +110,7 @@
                     <th>現在の打者</th>
                     <th>守備</th>
                     <th>メモ</th>
+                    <th>入力</th>
                   </tr>
                 </thead>
                 <tbody id="awayLineupBody"></tbody>
@@ -127,6 +128,7 @@
                     <th>現在の打者</th>
                     <th>守備</th>
                     <th>メモ</th>
+                    <th>入力</th>
                   </tr>
                 </thead>
                 <tbody id="homeLineupBody"></tbody>
@@ -291,36 +293,40 @@
       </section>
 
       <section class="panel" aria-label="打席履歴">
-        <div class="section-heading">
-          <div>
-            <p class="eyebrow">Log</p>
-            <h2>打席履歴</h2>
+        <details class="collapsible-panel">
+          <summary>
+            <span>
+              <span class="eyebrow">Log</span>
+              <strong>打席履歴</strong>
+            </span>
+            <span id="plateLogCount" class="summary-count">0件</span>
+          </summary>
+          <div class="table-wrap">
+            <table class="records-table">
+              <thead>
+                <tr>
+                  <th>試合</th>
+                  <th>チーム</th>
+                  <th>打順</th>
+                  <th>打者</th>
+                  <th>守備</th>
+                  <th>結果</th>
+                  <th>打席</th>
+                  <th>打数</th>
+                  <th>安打</th>
+                  <th>三振</th>
+                  <th>四球</th>
+                  <th>死球</th>
+                  <th>犠打</th>
+                  <th>盗塁</th>
+                  <th>出塁</th>
+                  <th>メモ</th>
+                </tr>
+              </thead>
+              <tbody id="plateLogBody"></tbody>
+            </table>
           </div>
-        </div>
-        <div class="table-wrap">
-          <table class="records-table">
-            <thead>
-              <tr>
-                <th>試合</th>
-                <th>打順</th>
-                <th>打者</th>
-                <th>守備</th>
-                <th>結果</th>
-                <th>打席</th>
-                <th>打数</th>
-                <th>安打</th>
-                <th>三振</th>
-                <th>四球</th>
-                <th>死球</th>
-                <th>犠打</th>
-                <th>盗塁</th>
-                <th>出塁</th>
-                <th>メモ</th>
-              </tr>
-            </thead>
-            <tbody id="plateLogBody"></tbody>
-          </table>
-        </div>
+        </details>
       </section>
 
       <section class="panel" aria-label="試合履歴">

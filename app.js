@@ -81,6 +81,7 @@ const awayLineupBody = document.querySelector("#awayLineupBody");
 const homeLineupBody = document.querySelector("#homeLineupBody");
 const playerSummaryBody = document.querySelector("#playerSummaryBody");
 const plateLogBody = document.querySelector("#plateLogBody");
+const plateLogCount = document.querySelector("#plateLogCount");
 const gameHistoryBody = document.querySelector("#gameHistoryBody");
 const gameDetailPanel = document.querySelector("#gameDetailPanel");
 const gameDetailTitle = document.querySelector("#gameDetailTitle");
@@ -173,11 +174,11 @@ function createEmptyLineups() {
   };
 }
 
-function buildLineup() {
+function buildLineup({ syncActive = true } = {}) {
   buildLineupForTeam("away", awayLineupBody);
   buildLineupForTeam("home", homeLineupBody);
   buildBattingOrderOptions();
-  syncBatterFromOrder();
+  if (syncActive) syncBatterFromOrder();
 }
 
 function buildLineupForTeam(teamKey, body) {
@@ -230,6 +231,15 @@ function buildLineupForTeam(teamKey, body) {
     memoCell.append(memoInput);
     row.append(memoCell);
 
+    const actionCell = document.createElement("td");
+    const useButton = document.createElement("button");
+    useButton.className = "detail-button lineup-use-button";
+    useButton.type = "button";
+    useButton.textContent = "打席へ";
+    useButton.addEventListener("click", () => selectLineupSpot(teamKey, spot.order));
+    actionCell.append(useButton);
+    row.append(actionCell);
+
     body.append(row);
   });
 }
@@ -238,26 +248,36 @@ function updateLineup(teamKey, index, key, value) {
   lineups[teamKey][index][key] = value;
   if (key === "starter" && !lineups[teamKey][index].player) {
     lineups[teamKey][index].player = value;
-    buildLineup();
-    return;
+    buildLineup({ syncActive: battingTeam.value === teamKey && String(battingOrder.value) === String(lineups[teamKey][index].order) });
+  } else {
+    buildBattingOrderOptions();
+    if (battingTeam.value === teamKey && String(battingOrder.value) === String(lineups[teamKey][index].order)) {
+      syncBatterFromOrder();
+    } else {
+      updatePinchStatus();
+    }
   }
   renderPlayerList(summarizeRecords());
-  buildBattingOrderOptions();
-  updatePinchStatus();
   saveState();
 }
 
 function teamLabel(teamKey) {
-  return teamKey === "home" ? "後攻" : "先攻";
+  if (teamKey === "home") return "後攻";
+  if (teamKey === "away") return "先攻";
+  return "";
 }
 
 function buildBattingOrderOptions() {
+  const selectedOrder = battingOrder.value || "1";
   battingOrder.innerHTML = lineups[battingTeam.value]
     .map((spot) => {
       const name = spot.player || spot.starter || "";
       return `<option value="${spot.order}">${spot.order}番${name ? ` ${escapeHtml(name)}` : ""}</option>`;
     })
     .join("");
+  if ([...battingOrder.options].some((option) => option.value === selectedOrder)) {
+    battingOrder.value = selectedOrder;
+  }
 }
 
 function syncBatterFromOrder() {
@@ -269,6 +289,15 @@ function syncBatterFromOrder() {
 
 function currentLineupSpot() {
   return lineups[battingTeam.value]?.find((spot) => String(spot.order) === String(battingOrder.value));
+}
+
+function selectLineupSpot(teamKey, order) {
+  battingTeam.value = teamKey;
+  buildBattingOrderOptions();
+  battingOrder.value = String(order);
+  syncBatterFromOrder();
+  document.querySelector("#plateSection")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  saveState();
 }
 
 function updatePinchStatus() {
@@ -509,11 +538,14 @@ function renderRecords() {
         .join("")
     : `<tr class="empty-row"><td colspan="16">まだ打席記録がありません</td></tr>`;
 
-  plateLogBody.innerHTML = allRecords().length
-    ? allRecords()
+  const logRecords = allRecords();
+  if (plateLogCount) plateLogCount.textContent = `${logRecords.length}件`;
+  plateLogBody.innerHTML = logRecords.length
+    ? logRecords
         .map((record) => `
           <tr>
             <td>${escapeHtml(record.game)}</td>
+            <td>${escapeHtml(teamLabel(record.team || ""))}</td>
             <td>${escapeHtml(record.battingOrder || "")}</td>
             <td>${escapeHtml(record.batter)}</td>
             <td>${escapeHtml(record.position || "")}</td>
@@ -531,7 +563,7 @@ function renderRecords() {
           </tr>
         `)
         .join("")
-    : `<tr class="empty-row"><td colspan="15">打席を追加するとここに履歴が出ます</td></tr>`;
+    : `<tr class="empty-row"><td colspan="16">打席を追加するとここに履歴が出ます</td></tr>`;
 
   renderGameHistory();
   renderPitchCounts();
@@ -1287,6 +1319,7 @@ newGameButton.addEventListener("click", resetCurrentGame);
 plateForm.addEventListener("submit", addPlateRecord);
 closeGameDetailButton.addEventListener("click", () => gameDetailPanel.classList.add("hidden"));
 battingTeam.addEventListener("change", () => {
+  battingOrder.value = "1";
   buildBattingOrderOptions();
   syncBatterFromOrder();
   saveState();
