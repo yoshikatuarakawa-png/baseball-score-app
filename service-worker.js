@@ -1,4 +1,4 @@
-const CACHE_NAME = "baseball-score-v1";
+const CACHE_NAME = "baseball-score-v2";
 const APP_FILES = [
   "./",
   "./index.html",

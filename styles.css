@@ -340,7 +340,7 @@ h2 {
 
 .plate-form {
   display: grid;
-  grid-template-columns: 1.35fr 1fr 0.65fr 0.9fr;
+  grid-template-columns: 0.85fr 0.7fr 1.25fr 0.6fr 1fr 0.65fr 0.9fr;
   gap: 14px;
   align-items: end;
 }
@@ -392,6 +392,33 @@ h2 {
 .lineup-table select {
   min-height: 36px;
   padding: 5px 8px;
+}
+
+.lineup-grid {
+  display: grid;
+  gap: 18px;
+}
+
+.lineup-grid h3 {
+  margin: 0 0 8px;
+  font-size: 1rem;
+}
+
+.pinch-status {
+  min-height: 42px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #f7faf7;
+  color: var(--muted);
+  font-weight: 900;
+}
+
+.pinch-status.active {
+  border-color: var(--gold);
+  background: #fff9ec;
+  color: #6d4b0d;
 }
 
 .pitch-controls {

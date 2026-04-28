@@ -54,8 +54,11 @@ const gameName = document.querySelector("#gameName");
 const venue = document.querySelector("#venue");
 const notes = document.querySelector("#notes");
 const plateForm = document.querySelector("#plateForm");
+const battingTeam = document.querySelector("#battingTeam");
+const battingOrder = document.querySelector("#battingOrder");
 const playerName = document.querySelector("#playerName");
 const playerList = document.querySelector("#playerList");
+const pinchStatus = document.querySelector("#pinchStatus");
 const plateResult = document.querySelector("#plateResult");
 const steals = document.querySelector("#steals");
 const stealsOther = document.querySelector("#stealsOther");
@@ -74,7 +77,8 @@ const gameStrikeTotal = document.querySelector("#gameStrikeTotal");
 const gameBallTotal = document.querySelector("#gameBallTotal");
 const gameFoulTotal = document.querySelector("#gameFoulTotal");
 const pitchSummaryBody = document.querySelector("#pitchSummaryBody");
-const lineupBody = document.querySelector("#lineupBody");
+const awayLineupBody = document.querySelector("#awayLineupBody");
+const homeLineupBody = document.querySelector("#homeLineupBody");
 const playerSummaryBody = document.querySelector("#playerSummaryBody");
 const plateLogBody = document.querySelector("#plateLogBody");
 const gameHistoryBody = document.querySelector("#gameHistoryBody");
@@ -92,7 +96,7 @@ const sortButtons = [...document.querySelectorAll(".sort-button")];
 let plateRecords = [];
 let pitchRecords = [];
 let currentCount = { balls: 0, strikes: 0, fouls: 0, total: 0 };
-let lineup = createEmptyLineup();
+let lineups = createEmptyLineups();
 let gameHistory = [];
 let summarySort = { key: "avg", direction: "desc" };
 const baseRecords = Array.isArray(window.BASE_RECORDS) ? window.BASE_RECORDS : [];
@@ -154,17 +158,31 @@ function buildRows() {
 function createEmptyLineup() {
   return Array.from({ length: 9 }, (_, index) => ({
     order: index + 1,
+    starter: "",
     player: "",
     position: "",
-    number: "",
     memo: "",
   }));
 }
 
-function buildLineup() {
-  lineupBody.innerHTML = "";
+function createEmptyLineups() {
+  return {
+    away: createEmptyLineup(),
+    home: createEmptyLineup(),
+  };
+}
 
-  lineup.forEach((spot, index) => {
+function buildLineup() {
+  buildLineupForTeam("away", awayLineupBody);
+  buildLineupForTeam("home", homeLineupBody);
+  buildBattingOrderOptions();
+  syncBatterFromOrder();
+}
+
+function buildLineupForTeam(teamKey, body) {
+  body.innerHTML = "";
+
+  lineups[teamKey].forEach((spot, index) => {
     const row = document.createElement("tr");
 
     const orderCell = document.createElement("td");
@@ -172,53 +190,93 @@ function buildLineup() {
     row.append(orderCell);
 
     const playerCell = document.createElement("td");
+    const starterInput = document.createElement("input");
+    starterInput.type = "text";
+    starterInput.value = spot.starter || spot.player;
+    starterInput.setAttribute("list", "playerList");
+    starterInput.setAttribute("aria-label", `${teamLabel(teamKey)} ${spot.order}番 先発`);
+    starterInput.addEventListener("input", () => updateLineup(teamKey, index, "starter", starterInput.value));
+    playerCell.append(starterInput);
+    row.append(playerCell);
+
+    const currentPlayerCell = document.createElement("td");
     const playerInput = document.createElement("input");
     playerInput.type = "text";
     playerInput.value = spot.player;
     playerInput.setAttribute("list", "playerList");
-    playerInput.setAttribute("aria-label", `${spot.order}番 選手`);
-    playerInput.addEventListener("input", () => updateLineup(index, "player", playerInput.value));
-    playerCell.append(playerInput);
-    row.append(playerCell);
+    playerInput.setAttribute("aria-label", `${teamLabel(teamKey)} ${spot.order}番 現在の打者`);
+    playerInput.addEventListener("input", () => updateLineup(teamKey, index, "player", playerInput.value));
+    currentPlayerCell.append(playerInput);
+    row.append(currentPlayerCell);
 
     const positionCell = document.createElement("td");
     const positionSelect = document.createElement("select");
-    positionSelect.setAttribute("aria-label", `${spot.order}番 ポジション`);
+    positionSelect.setAttribute("aria-label", `${teamLabel(teamKey)} ${spot.order}番 ポジション`);
     positionSelect.innerHTML = `<option value="">選択</option>${positions
       .map((position) => `<option value="${position}">${position}</option>`)
       .join("")}`;
     positionSelect.value = spot.position;
-    positionSelect.addEventListener("change", () => updateLineup(index, "position", positionSelect.value));
+    positionSelect.addEventListener("change", () => updateLineup(teamKey, index, "position", positionSelect.value));
     positionCell.append(positionSelect);
     row.append(positionCell);
-
-    const numberCell = document.createElement("td");
-    const numberInput = document.createElement("input");
-    numberInput.type = "text";
-    numberInput.inputMode = "numeric";
-    numberInput.value = spot.number;
-    numberInput.setAttribute("aria-label", `${spot.order}番 背番号`);
-    numberInput.addEventListener("input", () => updateLineup(index, "number", numberInput.value));
-    numberCell.append(numberInput);
-    row.append(numberCell);
 
     const memoCell = document.createElement("td");
     const memoInput = document.createElement("input");
     memoInput.type = "text";
     memoInput.value = spot.memo;
-    memoInput.setAttribute("aria-label", `${spot.order}番 メモ`);
-    memoInput.addEventListener("input", () => updateLineup(index, "memo", memoInput.value));
+    memoInput.setAttribute("aria-label", `${teamLabel(teamKey)} ${spot.order}番 メモ`);
+    memoInput.addEventListener("input", () => updateLineup(teamKey, index, "memo", memoInput.value));
     memoCell.append(memoInput);
     row.append(memoCell);
 
-    lineupBody.append(row);
+    body.append(row);
   });
 }
 
-function updateLineup(index, key, value) {
-  lineup[index][key] = value;
+function updateLineup(teamKey, index, key, value) {
+  lineups[teamKey][index][key] = value;
+  if (key === "starter" && !lineups[teamKey][index].player) {
+    lineups[teamKey][index].player = value;
+    buildLineup();
+    return;
+  }
   renderPlayerList(summarizeRecords());
+  buildBattingOrderOptions();
+  updatePinchStatus();
   saveState();
+}
+
+function teamLabel(teamKey) {
+  return teamKey === "home" ? "後攻" : "先攻";
+}
+
+function buildBattingOrderOptions() {
+  battingOrder.innerHTML = lineups[battingTeam.value]
+    .map((spot) => {
+      const name = spot.player || spot.starter || "";
+      return `<option value="${spot.order}">${spot.order}番${name ? ` ${escapeHtml(name)}` : ""}</option>`;
+    })
+    .join("");
+}
+
+function syncBatterFromOrder() {
+  const spot = currentLineupSpot();
+  if (!spot) return;
+  playerName.value = spot.player || spot.starter || "";
+  updatePinchStatus();
+}
+
+function currentLineupSpot() {
+  return lineups[battingTeam.value]?.find((spot) => String(spot.order) === String(battingOrder.value));
+}
+
+function updatePinchStatus() {
+  const spot = currentLineupSpot();
+  const current = playerName.value.trim();
+  const starter = spot?.starter?.trim() || "";
+  const isPinch = Boolean(starter && current && starter !== current);
+  pinchStatus.textContent = isPinch ? `代打: ${starter} → ${current}` : "通常";
+  pinchStatus.classList.toggle("active", isPinch);
 }
 
 function readScore(row) {
@@ -282,17 +340,22 @@ function addPlateRecord(event) {
   if (!name) return;
 
   const result = resultMap[plateResult.value];
-  const lineupSpot = findLineupSpot(name);
+  const lineupSpot = currentLineupSpot() || findLineupSpot(name);
+  const starter = lineupSpot?.starter?.trim() || "";
+  const isPinchHitter = Boolean(starter && name !== starter);
   const record = {
     id: Date.now(),
     source: "added",
     game: currentGameLabel(),
     gameDate: gameDate.value,
+    team: battingTeam.value,
     batter: name,
     battingOrder: lineupSpot?.order || "",
     position: lineupSpot?.position || "",
+    starter,
+    isPinchHitter,
     resultKey: plateResult.value,
-    result: result.label,
+    result: `${isPinchHitter ? "代打 " : ""}${result.label}`,
     pa: 1,
     ab: result.ab,
     hit: result.hit,
@@ -313,7 +376,7 @@ function addPlateRecord(event) {
 
   plateRecords.unshift(record);
   playerName.value = "";
-  moveToNextBatter(name);
+  moveToNextBatter(battingTeam.value, lineupSpot?.order);
   steals.value = "0";
   stealsOther.value = "0";
   plateMemo.value = "";
@@ -321,20 +384,18 @@ function addPlateRecord(event) {
   saveState();
 }
 
-function moveToNextBatter(currentName) {
-  const currentIndex = lineup.findIndex((spot) => spot.player.trim() === currentName.trim());
-  if (currentIndex < 0) return;
-
-  const filledLineup = lineup.filter((spot) => spot.player.trim());
+function moveToNextBatter(teamKey, currentOrder) {
+  const filledLineup = lineups[teamKey].filter((spot) => spot.player.trim() || spot.starter.trim());
   if (!filledLineup.length) return;
 
-  const currentOrder = lineup[currentIndex].order;
   const nextSpot =
     filledLineup.find((spot) => spot.order > currentOrder) ||
     filledLineup.find((spot) => spot.order === Math.min(...filledLineup.map((spot) => spot.order)));
 
   if (nextSpot) {
-    playerName.value = nextSpot.player;
+    battingOrder.value = String(nextSpot.order);
+    playerName.value = nextSpot.player || nextSpot.starter;
+    updatePinchStatus();
   }
 }
 
@@ -367,7 +428,10 @@ function summarizeRecords() {
 }
 
 function renderPlayerList(summary) {
-  const lineupNames = lineup.map((spot) => spot.player.trim()).filter(Boolean);
+  const lineupNames = Object.values(lineups)
+    .flat()
+    .flatMap((spot) => [spot.starter?.trim(), spot.player?.trim()])
+    .filter(Boolean);
   const pitcherNames = pitchRecords.map((pitch) => pitch.pitcher).filter(Boolean);
   const names = [...new Set([...defaultPlayers, ...lineupNames, ...pitcherNames, ...Object.keys(summary)])].sort((a, b) =>
     a.localeCompare(b, "ja"),
@@ -522,11 +586,17 @@ function allRecords() {
 }
 
 function findLineupSpot(name) {
-  return lineup.find((spot) => spot.player.trim() === name.trim());
+  return Object.values(lineups)
+    .flat()
+    .find((spot) => spot.player.trim() === name.trim() || spot.starter.trim() === name.trim());
 }
 
 function addPitch(event) {
-  const pitcher = pitcherName.value.trim() || lineup.find((spot) => spot.position === "投")?.player.trim();
+  const pitcher =
+    pitcherName.value.trim() ||
+    Object.values(lineups)
+      .flat()
+      .find((spot) => spot.position === "投")?.player.trim();
   if (!pitcher) {
     pitcherName.focus();
     return;
@@ -664,7 +734,7 @@ function saveCurrentGame() {
     pitchTotal: pitches.total,
     pitchSummary: pitches,
     scoreRows: snapshot,
-    lineup: structuredClone(lineup),
+    lineups: structuredClone(lineups),
     records: structuredClone(plateRecords),
     pitchRecords: structuredClone(pitchRecords),
   };
@@ -719,8 +789,8 @@ function showGameDetail(gameId) {
       <h3>打順・ポジション</h3>
       <div class="table-wrap">
         <table class="lineup-table">
-          <thead><tr><th>打順</th><th>選手</th><th>ポジション</th><th>背番号</th><th>メモ</th></tr></thead>
-          <tbody>${renderDetailLineup(game.lineup || [])}</tbody>
+          <thead><tr><th>打順</th><th>先発</th><th>ポジション</th><th>代打</th><th>メモ</th></tr></thead>
+          <tbody>${renderDetailLineup(game.lineups || game.lineup || [])}</tbody>
         </table>
       </div>
     </div>
@@ -752,15 +822,17 @@ function showGameDetail(gameId) {
 }
 
 function renderDetailLineup(savedLineup) {
-  const rows = savedLineup.filter((spot) => spot.player || spot.position || spot.number || spot.memo);
+  const rows = (Array.isArray(savedLineup) ? savedLineup : [...(savedLineup.away || []), ...(savedLineup.home || [])]).filter(
+    (spot) => spot.starter || spot.player || spot.position || spot.memo,
+  );
   if (!rows.length) return `<tr class="empty-row"><td colspan="5">打順の保存はありません</td></tr>`;
   return rows
     .map((spot) => `
       <tr>
         <td>${escapeHtml(spot.order || "")}</td>
-        <td>${escapeHtml(spot.player || "")}</td>
+        <td>${escapeHtml(spot.starter || spot.player || "")}</td>
         <td>${escapeHtml(spot.position || "")}</td>
-        <td>${escapeHtml(spot.number || "")}</td>
+        <td>${escapeHtml(spot.player && spot.starter && spot.player !== spot.starter ? `代打 ${spot.player}` : "")}</td>
         <td>${escapeHtml(spot.memo || "")}</td>
       </tr>
     `)
@@ -834,7 +906,7 @@ function resetCurrentGameFields() {
   plateRecords = [];
   pitchRecords = [];
   currentCount = { balls: 0, strikes: 0, fouls: 0, total: 0 };
-  lineup = createEmptyLineup();
+  lineups = createEmptyLineups();
   buildLineup();
   updateTotals();
   renderRecords();
@@ -856,11 +928,13 @@ function saveState() {
     gameName: gameName.value,
     notes: notes.value,
     rows,
-    lineup,
+    lineups,
     plateRecords,
     pitchRecords,
     currentCount,
     gameHistory,
+    battingTeam: battingTeam.value,
+    battingOrder: battingOrder.value,
   };
   localStorage.setItem(storageKey, JSON.stringify(payload));
 }
@@ -878,8 +952,9 @@ function loadState() {
     plateRecords = Array.isArray(payload.plateRecords) ? payload.plateRecords : [];
     pitchRecords = Array.isArray(payload.pitchRecords) ? payload.pitchRecords : [];
     currentCount = payload.currentCount || { balls: 0, strikes: 0, fouls: 0, total: 0 };
-    lineup = Array.isArray(payload.lineup) ? normalizeLineup(payload.lineup) : createEmptyLineup();
+    lineups = normalizeLineups(payload.lineups || payload.lineup);
     gameHistory = Array.isArray(payload.gameHistory) ? payload.gameHistory : [];
+    battingTeam.value = payload.battingTeam || "away";
 
     (payload.rows || []).forEach((savedRow) => {
       const row = document.querySelector(`[data-team="${savedRow.team}"]`);
@@ -891,6 +966,8 @@ function loadState() {
       row.querySelector(".hits").value = savedRow.hits || "";
       row.querySelector(".errors").value = savedRow.errors || "";
     });
+    buildBattingOrderOptions();
+    battingOrder.value = payload.battingOrder || "1";
     return true;
   } catch {
     return false;
@@ -901,8 +978,20 @@ function normalizeLineup(savedLineup) {
   return createEmptyLineup().map((spot, index) => ({
     ...spot,
     ...(savedLineup[index] || {}),
+    starter: savedLineup[index]?.starter || savedLineup[index]?.player || "",
+    player: savedLineup[index]?.player || savedLineup[index]?.starter || "",
     order: index + 1,
   }));
+}
+
+function normalizeLineups(saved) {
+  if (Array.isArray(saved)) {
+    return { away: normalizeLineup(saved), home: createEmptyLineup() };
+  }
+  return {
+    away: normalizeLineup(saved?.away || []),
+    home: normalizeLineup(saved?.home || []),
+  };
 }
 
 function clearForm() {
@@ -934,17 +1023,30 @@ function fillSample() {
   venue.value = "市民球場";
   gameName.value = "春季大会 1回戦";
   notes.value = "9回裏にサヨナラ。";
-  lineup = [
-    { order: 1, player: "マリナ", position: "遊", number: "6", memo: "" },
-    { order: 2, player: "タイヨウ", position: "二", number: "4", memo: "" },
-    { order: 3, player: "ハルカ", position: "中", number: "8", memo: "" },
-    { order: 4, player: "ヤマト", position: "一", number: "3", memo: "" },
-    { order: 5, player: "ジュンナ", position: "捕", number: "2", memo: "" },
-    { order: 6, player: "ショウマ", position: "三", number: "5", memo: "" },
-    { order: 7, player: "エイタ", position: "左", number: "7", memo: "" },
-    { order: 8, player: "中村ハルト", position: "右", number: "9", memo: "" },
-    { order: 9, player: "ユリナ", position: "投", number: "1", memo: "" },
-  ];
+  lineups = {
+    away: [
+      { order: 1, starter: "マリナ", player: "マリナ", position: "遊", memo: "" },
+      { order: 2, starter: "タイヨウ", player: "タイヨウ", position: "二", memo: "" },
+      { order: 3, starter: "ハルカ", player: "ハルカ", position: "中", memo: "" },
+      { order: 4, starter: "ヤマト", player: "ヤマト", position: "一", memo: "" },
+      { order: 5, starter: "ジュンナ", player: "ジュンナ", position: "捕", memo: "" },
+      { order: 6, starter: "ショウマ", player: "ショウマ", position: "三", memo: "" },
+      { order: 7, starter: "エイタ", player: "エイタ", position: "左", memo: "" },
+      { order: 8, starter: "中村ハルト", player: "中村ハルト", position: "右", memo: "" },
+      { order: 9, starter: "ユリナ", player: "ユリナ", position: "投", memo: "" },
+    ],
+    home: [
+      { order: 1, starter: "東町1番", player: "東町1番", position: "中", memo: "" },
+      { order: 2, starter: "東町2番", player: "東町2番", position: "二", memo: "" },
+      { order: 3, starter: "東町3番", player: "東町3番", position: "投", memo: "" },
+      { order: 4, starter: "東町4番", player: "東町4番", position: "捕", memo: "" },
+      { order: 5, starter: "東町5番", player: "東町5番", position: "一", memo: "" },
+      { order: 6, starter: "東町6番", player: "東町6番", position: "三", memo: "" },
+      { order: 7, starter: "東町7番", player: "東町7番", position: "左", memo: "" },
+      { order: 8, starter: "東町8番", player: "東町8番", position: "右", memo: "" },
+      { order: 9, starter: "東町9番", player: "東町9番", position: "遊", memo: "" },
+    ],
+  };
   buildLineup();
   plateRecords = [
     makeSampleRecord("ハルカ", "double", 0, 0, "左中間二塁打"),
@@ -1015,7 +1117,9 @@ function exportCsv() {
   const headers = [
     "試合",
     "日付",
+    "チーム",
     "打順",
+    "区分",
     "打者",
     "ポジション",
     "打席",
@@ -1038,7 +1142,9 @@ function exportCsv() {
   const rows = allRecords().map((record) => [
     record.game,
     record.gameDate || "",
+    record.team === "home" ? "後攻" : record.team === "away" ? "先攻" : "",
     record.battingOrder || "",
+    record.isPinchHitter ? "代打" : "",
     record.batter,
     record.position || "",
     record.pa,
@@ -1097,6 +1203,16 @@ saveGameButton.addEventListener("click", saveCurrentGame);
 newGameButton.addEventListener("click", resetCurrentGame);
 plateForm.addEventListener("submit", addPlateRecord);
 closeGameDetailButton.addEventListener("click", () => gameDetailPanel.classList.add("hidden"));
+battingTeam.addEventListener("change", () => {
+  buildBattingOrderOptions();
+  syncBatterFromOrder();
+  saveState();
+});
+battingOrder.addEventListener("change", () => {
+  syncBatterFromOrder();
+  saveState();
+});
+playerName.addEventListener("input", updatePinchStatus);
 pitchButtons.forEach((button) => button.addEventListener("click", addPitch));
 undoPitchButton.addEventListener("click", undoPitch);
 resetCountButton.addEventListener("click", resetCount);

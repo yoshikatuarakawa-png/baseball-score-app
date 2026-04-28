@@ -96,21 +96,43 @@
             <p class="eyebrow">Lineup</p>
             <h2>打順・ポジション</h2>
           </div>
-          <p class="hint">ここに入れた選手は打席入力の候補にも出ます。</p>
+          <p class="hint">先発と現在の打者が違う場合は代打として記録されます。</p>
         </div>
-        <div class="table-wrap">
-          <table class="lineup-table">
-            <thead>
-              <tr>
-                <th>打順</th>
-                <th>選手</th>
-                <th>ポジション</th>
-                <th>背番号</th>
-                <th>メモ</th>
-              </tr>
-            </thead>
-            <tbody id="lineupBody"></tbody>
-          </table>
+        <div class="lineup-grid">
+          <div>
+            <h3>先攻</h3>
+            <div class="table-wrap">
+              <table class="lineup-table">
+                <thead>
+                  <tr>
+                    <th>打順</th>
+                    <th>先発</th>
+                    <th>現在の打者</th>
+                    <th>守備</th>
+                    <th>メモ</th>
+                  </tr>
+                </thead>
+                <tbody id="awayLineupBody"></tbody>
+              </table>
+            </div>
+          </div>
+          <div>
+            <h3>後攻</h3>
+            <div class="table-wrap">
+              <table class="lineup-table">
+                <thead>
+                  <tr>
+                    <th>打順</th>
+                    <th>先発</th>
+                    <th>現在の打者</th>
+                    <th>守備</th>
+                    <th>メモ</th>
+                  </tr>
+                </thead>
+                <tbody id="homeLineupBody"></tbody>
+              </table>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -179,10 +201,22 @@
 
         <form id="plateForm" class="plate-form">
           <label>
+            チーム
+            <select id="battingTeam">
+              <option value="away">先攻</option>
+              <option value="home">後攻</option>
+            </select>
+          </label>
+          <label>
+            打順
+            <select id="battingOrder"></select>
+          </label>
+          <label>
             打者
             <input id="playerName" type="text" list="playerList" placeholder="例: ハルカ" required />
             <datalist id="playerList"></datalist>
           </label>
+          <div class="pinch-status" id="pinchStatus">通常</div>
           <label>
             結果
             <select id="plateResult">
