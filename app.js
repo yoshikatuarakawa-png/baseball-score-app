@@ -96,6 +96,7 @@ const sortButtons = [...document.querySelectorAll(".sort-button")];
 let plateRecords = [];
 let pitchRecords = [];
 let currentCount = { balls: 0, strikes: 0, fouls: 0, total: 0 };
+let pitcherCounts = {};
 let lineups = createEmptyLineups();
 let gameHistory = [];
 let summarySort = { key: "avg", direction: "desc" };
@@ -585,6 +586,44 @@ function allRecords() {
   return [...plateRecords, ...baseRecords];
 }
 
+function emptyPitchCount() {
+  return { balls: 0, strikes: 0, fouls: 0, total: 0 };
+}
+
+function normalizePitcherName(name) {
+  return String(name || "").trim();
+}
+
+function fallbackPitcherName() {
+  return normalizePitcherName(
+    Object.values(lineups)
+      .flat()
+      .find((spot) => spot.position === positions[0])?.player,
+  );
+}
+
+function activePitcherName() {
+  const pitcher = normalizePitcherName(pitcherName.value) || fallbackPitcherName();
+  if (pitcher) pitcherName.value = pitcher;
+  return pitcher;
+}
+
+function countForPitcher(pitcher) {
+  return { ...emptyPitchCount(), ...(pitcherCounts[normalizePitcherName(pitcher)] || {}) };
+}
+
+function setCountForPitcher(pitcher, count) {
+  const key = normalizePitcherName(pitcher);
+  if (!key) return;
+  pitcherCounts[key] = { ...emptyPitchCount(), ...count };
+}
+
+function syncCurrentCountFromPitcher() {
+  const pitcher = normalizePitcherName(pitcherName.value);
+  currentCount = pitcher ? countForPitcher(pitcher) : emptyPitchCount();
+  renderPitchCounts();
+}
+
 function findLineupSpot(name) {
   return Object.values(lineups)
     .flat()
@@ -592,19 +631,16 @@ function findLineupSpot(name) {
 }
 
 function addPitch(event) {
-  const pitcher =
-    pitcherName.value.trim() ||
-    Object.values(lineups)
-      .flat()
-      .find((spot) => spot.position === "投")?.player.trim();
+  const pitcher = activePitcherName();
   if (!pitcher) {
     pitcherName.focus();
     return;
   }
 
-  pitcherName.value = pitcher;
+  currentCount = countForPitcher(pitcher);
   const countBefore = { ...currentCount };
   applyPitchToCount(event.currentTarget.dataset.pitch);
+  setCountForPitcher(pitcher, currentCount);
 
   pitchRecords.push({
     id: Date.now() + Math.random(),
@@ -621,7 +657,13 @@ function addPitch(event) {
 
 function undoPitch() {
   const removed = pitchRecords.pop();
-  currentCount = removed?.countBefore || { balls: 0, strikes: 0, fouls: 0, total: 0 };
+  if (removed) {
+    pitcherName.value = removed.pitcher || pitcherName.value;
+    currentCount = { ...emptyPitchCount(), ...(removed.countBefore || {}) };
+    setCountForPitcher(removed.pitcher, currentCount);
+  } else {
+    currentCount = emptyPitchCount();
+  }
   renderPitchCounts();
   saveState();
 }
@@ -646,7 +688,9 @@ function applyPitchToCount(type) {
 }
 
 function resetCount() {
-  currentCount = { balls: 0, strikes: 0, fouls: 0, total: 0 };
+  const pitcher = normalizePitcherName(pitcherName.value);
+  currentCount = emptyPitchCount();
+  if (pitcher) setCountForPitcher(pitcher, currentCount);
   renderPitchCounts();
   saveState();
 }
@@ -693,16 +737,23 @@ function renderPitchCounts() {
             <td>${row.strike}</td>
             <td>${row.ball}</td>
             <td>${row.foul}</td>
+            <td>${pitcherCountText(pitcher)}</td>
           </tr>
         `)
         .join("")
-    : `<tr class="empty-row"><td colspan="5">投球を記録するとここに投手別集計が出ます</td></tr>`;
+    : `<tr class="empty-row"><td colspan="6">投球を記録するとここに投手別集計が出ます</td></tr>`;
 }
 
 function countStatusText() {
   if (currentCount.balls >= 4) return "四球です。次の打者を押すとカウントを戻せます。";
   if (currentCount.strikes >= 3) return "三振です。次の打者を押すとカウントを戻せます。";
   return `${currentCount.balls}ボール ${currentCount.strikes}ストライク`;
+}
+
+function pitcherCountText(pitcher) {
+  const count = countForPitcher(pitcher);
+  if (!count.total) return "-";
+  return `${count.balls}B ${count.strikes}S / ${count.total}球`;
 }
 
 function currentScoreSnapshot() {
@@ -905,7 +956,8 @@ function resetCurrentGameFields() {
   stealsOther.value = "0";
   plateRecords = [];
   pitchRecords = [];
-  currentCount = { balls: 0, strikes: 0, fouls: 0, total: 0 };
+  currentCount = emptyPitchCount();
+  pitcherCounts = {};
   lineups = createEmptyLineups();
   buildLineup();
   updateTotals();
@@ -932,9 +984,11 @@ function saveState() {
     plateRecords,
     pitchRecords,
     currentCount,
+    pitcherCounts,
     gameHistory,
     battingTeam: battingTeam.value,
     battingOrder: battingOrder.value,
+    activePitcher: pitcherName.value,
   };
   localStorage.setItem(storageKey, JSON.stringify(payload));
 }
@@ -951,7 +1005,14 @@ function loadState() {
     notes.value = payload.notes || "";
     plateRecords = Array.isArray(payload.plateRecords) ? payload.plateRecords : [];
     pitchRecords = Array.isArray(payload.pitchRecords) ? payload.pitchRecords : [];
-    currentCount = payload.currentCount || { balls: 0, strikes: 0, fouls: 0, total: 0 };
+    pitcherCounts = normalizePitcherCounts(payload.pitcherCounts, pitchRecords);
+    pitcherName.value = payload.activePitcher || "";
+    if (normalizePitcherName(pitcherName.value) && !pitcherCounts[normalizePitcherName(pitcherName.value)]) {
+      setCountForPitcher(pitcherName.value, payload.currentCount || emptyPitchCount());
+    }
+    currentCount = normalizePitcherName(pitcherName.value)
+      ? countForPitcher(pitcherName.value)
+      : { ...emptyPitchCount(), ...(payload.currentCount || {}) };
     lineups = normalizeLineups(payload.lineups || payload.lineup);
     gameHistory = Array.isArray(payload.gameHistory) ? payload.gameHistory : [];
     battingTeam.value = payload.battingTeam || "away";
@@ -992,6 +1053,25 @@ function normalizeLineups(saved) {
     away: normalizeLineup(saved?.away || []),
     home: normalizeLineup(saved?.home || []),
   };
+}
+
+function normalizePitcherCounts(savedCounts, records) {
+  const counts = {};
+  if (savedCounts && typeof savedCounts === "object") {
+    Object.entries(savedCounts).forEach(([pitcher, count]) => {
+      const name = normalizePitcherName(pitcher);
+      if (name) counts[name] = { ...emptyPitchCount(), ...(count || {}) };
+    });
+  }
+
+  records.forEach((pitch) => {
+    const name = normalizePitcherName(pitch.pitcher);
+    if (name && pitch.countAfter) {
+      counts[name] = { ...emptyPitchCount(), ...pitch.countAfter };
+    }
+  });
+
+  return counts;
 }
 
 function clearForm() {
@@ -1065,6 +1145,9 @@ function fillSample() {
   ];
   currentCount = { balls: 2, strikes: 2, fouls: 1, total: 5 };
   pitcherName.value = "ユリナ";
+  pitcherCounts = {};
+  setCountForPitcher(pitcherName.value, currentCount);
+  setCountForPitcher(pitchRecords.at(-1)?.pitcher, { balls: 0, strikes: 1, fouls: 0, total: 1 });
   updateTotals();
   renderRecords();
   renderPitchCounts();
@@ -1216,5 +1299,6 @@ playerName.addEventListener("input", updatePinchStatus);
 pitchButtons.forEach((button) => button.addEventListener("click", addPitch));
 undoPitchButton.addEventListener("click", undoPitch);
 resetCountButton.addEventListener("click", resetCount);
+pitcherName.addEventListener("input", syncCurrentCountFromPitcher);
 sortButtons.forEach((button) => button.addEventListener("click", changeSummarySort));
 [gameDate, venue, gameName, notes, pitcherName].forEach((field) => field.addEventListener("change", saveState));
