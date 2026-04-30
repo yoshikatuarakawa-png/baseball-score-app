@@ -44,6 +44,7 @@ const storageKey = "baseball-score-records-v1";
 const GOOGLE_CLIENT_ID = "834735313249-8saeorvms46cs3oldo23d5vtdke9s0jr.apps.googleusercontent.com";
 const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file";
 const DRIVE_SYNC_FILE = "baseball-score-app-data.json";
+const DRIVE_PUBLIC_VIEW_FILE = "baseball-score-public-view.json";
 const DRIVE_MIME = "application/json";
 const scoreBody = document.querySelector("#scoreBody");
 const resultText = document.querySelector("#resultText");
@@ -1190,6 +1191,22 @@ function applyStatePayload(payload) {
 
 async function loadSharedViewFromUrl() {
   const params = new URLSearchParams(window.location.search);
+  const publicFileId = params.get("viewFile");
+  if (publicFileId) {
+    try {
+      const response = await fetch(`https://drive.google.com/uc?export=download&id=${encodeURIComponent(publicFileId)}`);
+      if (!response.ok) throw new Error(`Public view fetch failed ${response.status}`);
+      const payload = await response.json();
+      applyStatePayload(payload);
+      enableViewOnlyMode();
+      return true;
+    } catch (error) {
+      console.error(error);
+      alert("閲覧リンクの読み込みに失敗しました。新しいリンクを送ってもらってください。");
+      return false;
+    }
+  }
+
   const token = params.get("view");
   if (!token) return false;
 
@@ -1219,8 +1236,11 @@ function enableViewOnlyMode() {
 async function createViewLink() {
   try {
     saveState();
-    const token = await encodeShareToken(JSON.stringify(buildStatePayload()));
-    const url = `${location.origin}${location.pathname}?view=${token}`;
+    setDriveStatus("閲覧リンク作成中...");
+    await requestGoogleAccessToken();
+    const publicFile = await savePublicViewFile(JSON.stringify(buildStatePayload(), null, 2));
+    await makeDriveFilePublic(publicFile.id);
+    const url = `${location.origin}${location.pathname}?viewFile=${encodeURIComponent(publicFile.id)}`;
     await copyText(url);
     setDriveStatus("閲覧リンクをコピーしました");
     alert("閲覧専用リンクをコピーしました。LINEなどに貼り付けて送れます。");
@@ -1381,6 +1401,15 @@ async function findDriveSyncFile() {
   return data.files?.[0] || null;
 }
 
+async function findDriveFileByName(name) {
+  const query = encodeURIComponent(`name='${name}' and trashed=false`);
+  const response = await driveRequest(
+    `https://www.googleapis.com/drive/v3/files?q=${query}&spaces=drive&fields=files(id,name,modifiedTime)&pageSize=1`,
+  );
+  const data = await response.json();
+  return data.files?.[0] || null;
+}
+
 function multipartBody(metadata, content) {
   const boundary = "baseball_score_boundary";
   return {
@@ -1426,6 +1455,37 @@ async function saveToDrive() {
     setDriveStatus("Drive保存失敗");
     alert("Google Driveへの保存に失敗しました。設定またはログインを確認してください。");
   }
+}
+
+async function savePublicViewFile(content) {
+  const existing = await findDriveFileByName(DRIVE_PUBLIC_VIEW_FILE);
+  if (existing) {
+    const response = await driveRequest(
+      `https://www.googleapis.com/upload/drive/v3/files/${existing.id}?uploadType=media&fields=id,webContentLink`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": DRIVE_MIME },
+        body: content,
+      },
+    );
+    return response.json();
+  }
+
+  const multipart = multipartBody({ name: DRIVE_PUBLIC_VIEW_FILE, mimeType: DRIVE_MIME }, content);
+  const response = await driveRequest("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webContentLink", {
+    method: "POST",
+    headers: { "Content-Type": `multipart/related; boundary=${multipart.boundary}` },
+    body: multipart.body,
+  });
+  return response.json();
+}
+
+async function makeDriveFilePublic(fileId) {
+  await driveRequest(`https://www.googleapis.com/drive/v3/files/${fileId}/permissions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ role: "reader", type: "anyone" }),
+  });
 }
 
 async function loadFromDrive() {
