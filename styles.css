@@ -427,7 +427,7 @@ h2 {
 
 .pitch-controls {
   display: grid;
-  grid-template-columns: minmax(180px, 1fr) 2fr auto auto;
+  grid-template-columns: minmax(180px, 1fr) 2fr repeat(4, auto);
   gap: 14px;
   align-items: end;
   margin-bottom: 14px;
@@ -458,7 +458,7 @@ h2 {
 
 .current-count {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 10px;
   align-items: stretch;
   margin-bottom: 14px;
@@ -483,6 +483,10 @@ h2 {
   color: var(--ink);
   font-size: 2rem;
   line-height: 1.1;
+}
+
+.out-count-card {
+  border-left: 5px solid var(--gold);
 }
 
 .current-count p {

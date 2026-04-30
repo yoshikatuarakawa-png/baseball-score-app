@@ -67,10 +67,13 @@ const pitcherName = document.querySelector("#pitcherName");
 const pitchButtons = [...document.querySelectorAll(".pitch-button")];
 const undoPitchButton = document.querySelector("#undoPitchButton");
 const resetCountButton = document.querySelector("#resetCountButton");
+const addOutButton = document.querySelector("#addOutButton");
+const undoOutButton = document.querySelector("#undoOutButton");
 const currentBalls = document.querySelector("#currentBalls");
 const currentStrikes = document.querySelector("#currentStrikes");
 const currentFouls = document.querySelector("#currentFouls");
 const currentPitchTotal = document.querySelector("#currentPitchTotal");
+const currentOutsDisplay = document.querySelector("#currentOuts");
 const countStatus = document.querySelector("#countStatus");
 const gamePitchTotal = document.querySelector("#gamePitchTotal");
 const gameStrikeTotal = document.querySelector("#gameStrikeTotal");
@@ -97,6 +100,7 @@ const sortButtons = [...document.querySelectorAll(".sort-button")];
 let plateRecords = [];
 let pitchRecords = [];
 let currentCount = { balls: 0, strikes: 0, fouls: 0, total: 0 };
+let currentOuts = 0;
 let pitcherCounts = {};
 let lineups = createEmptyLineups();
 let gameHistory = [];
@@ -727,6 +731,18 @@ function resetCount() {
   saveState();
 }
 
+function addOut() {
+  currentOuts = (currentOuts + 1) % 3;
+  renderPitchCounts();
+  saveState();
+}
+
+function undoOut() {
+  currentOuts = (currentOuts + 2) % 3;
+  renderPitchCounts();
+  saveState();
+}
+
 function summarizePitches() {
   return pitchRecords.reduce((summary, pitch) => {
     summary[pitch.pitcher] = summary[pitch.pitcher] || { total: 0, strike: 0, ball: 0, foul: 0 };
@@ -753,6 +769,7 @@ function renderPitchCounts() {
   currentStrikes.textContent = String(currentCount.strikes);
   currentFouls.textContent = String(currentCount.fouls);
   currentPitchTotal.textContent = String(currentCount.total);
+  currentOutsDisplay.textContent = String(currentOuts);
   countStatus.textContent = countStatusText();
   gamePitchTotal.textContent = String(totals.total);
   gameStrikeTotal.textContent = String(totals.strike);
@@ -816,6 +833,7 @@ function saveCurrentGame() {
     score: scoreLabel(snapshot),
     pitchTotal: pitches.total,
     pitchSummary: pitches,
+    currentOuts,
     scoreRows: snapshot,
     lineups: structuredClone(lineups),
     records: structuredClone(plateRecords),
@@ -989,6 +1007,7 @@ function resetCurrentGameFields() {
   plateRecords = [];
   pitchRecords = [];
   currentCount = emptyPitchCount();
+  currentOuts = 0;
   pitcherCounts = {};
   lineups = createEmptyLineups();
   buildLineup();
@@ -1016,6 +1035,7 @@ function saveState() {
     plateRecords,
     pitchRecords,
     currentCount,
+    currentOuts,
     pitcherCounts,
     gameHistory,
     battingTeam: battingTeam.value,
@@ -1045,6 +1065,7 @@ function loadState() {
     currentCount = normalizePitcherName(pitcherName.value)
       ? countForPitcher(pitcherName.value)
       : { ...emptyPitchCount(), ...(payload.currentCount || {}) };
+    currentOuts = Number(payload.currentOuts || 0) % 3;
     lineups = normalizeLineups(payload.lineups || payload.lineup);
     gameHistory = Array.isArray(payload.gameHistory) ? payload.gameHistory : [];
     battingTeam.value = payload.battingTeam || "away";
@@ -1176,6 +1197,7 @@ function fillSample() {
     makePitchRecord("タイヨウ", "strike"),
   ];
   currentCount = { balls: 2, strikes: 2, fouls: 1, total: 5 };
+  currentOuts = 1;
   pitcherName.value = "ユリナ";
   pitcherCounts = {};
   setCountForPitcher(pitcherName.value, currentCount);
@@ -1332,6 +1354,8 @@ playerName.addEventListener("input", updatePinchStatus);
 pitchButtons.forEach((button) => button.addEventListener("click", addPitch));
 undoPitchButton.addEventListener("click", undoPitch);
 resetCountButton.addEventListener("click", resetCount);
+addOutButton.addEventListener("click", addOut);
+undoOutButton.addEventListener("click", undoOut);
 pitcherName.addEventListener("input", syncCurrentCountFromPitcher);
 sortButtons.forEach((button) => button.addEventListener("click", changeSummarySort));
 [gameDate, venue, gameName, notes, pitcherName].forEach((field) => field.addEventListener("change", saveState));
