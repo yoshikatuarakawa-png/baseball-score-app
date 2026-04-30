@@ -100,6 +100,20 @@ h1 {
   text-align: right;
 }
 
+.view-only .actions,
+.view-only .game-meta,
+.view-only .notes,
+.view-only .entry-panel,
+.view-only .pitch-panel,
+.view-only .lineup-panel .lineup-use-button {
+  display: none;
+}
+
+.view-only .drive-status {
+  display: block;
+  color: var(--green-dark);
+}
+
 button {
   min-height: 42px;
   border: 1px solid transparent;

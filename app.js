@@ -53,6 +53,7 @@ const sampleButton = document.querySelector("#sampleButton");
 const exportButton = document.querySelector("#exportButton");
 const driveSaveButton = document.querySelector("#driveSaveButton");
 const driveLoadButton = document.querySelector("#driveLoadButton");
+const shareViewButton = document.querySelector("#shareViewButton");
 const driveStatus = document.querySelector("#driveStatus");
 const saveGameButton = document.querySelector("#saveGameButton");
 const newGameButton = document.querySelector("#newGameButton");
@@ -115,6 +116,7 @@ let gameHistory = [];
 let summarySort = { key: "avg", direction: "desc" };
 let googleTokenClient = null;
 let googleAccessToken = "";
+let viewOnlyMode = false;
 const baseRecords = Array.isArray(window.BASE_RECORDS) ? window.BASE_RECORDS : [];
 
 function makeNumberInput(className, label) {
@@ -1186,6 +1188,96 @@ function applyStatePayload(payload) {
   renderGameHistory();
 }
 
+async function loadSharedViewFromUrl() {
+  const params = new URLSearchParams(window.location.search);
+  const token = params.get("view");
+  if (!token) return false;
+
+  try {
+    const payload = JSON.parse(await decodeShareToken(token));
+    applyStatePayload(payload);
+    enableViewOnlyMode();
+    return true;
+  } catch (error) {
+    console.error(error);
+    alert("閲覧リンクの読み込みに失敗しました。新しいリンクを送ってもらってください。");
+    return false;
+  }
+}
+
+function enableViewOnlyMode() {
+  viewOnlyMode = true;
+  document.body.classList.add("view-only");
+  setDriveStatus("閲覧専用モード");
+  document.querySelectorAll("input, select, textarea, button").forEach((element) => {
+    if (element.closest(".quick-nav")) return;
+    if (element.id === "closeGameDetailButton") return;
+    element.disabled = true;
+  });
+}
+
+async function createViewLink() {
+  try {
+    saveState();
+    const token = await encodeShareToken(JSON.stringify(buildStatePayload()));
+    const url = `${location.origin}${location.pathname}?view=${token}`;
+    await copyText(url);
+    setDriveStatus("閲覧リンクをコピーしました");
+    alert("閲覧専用リンクをコピーしました。LINEなどに貼り付けて送れます。");
+  } catch (error) {
+    console.error(error);
+    prompt("コピーできなかったため、このリンクをコピーしてください。", `${location.origin}${location.pathname}`);
+  }
+}
+
+async function copyText(text) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+  const area = document.createElement("textarea");
+  area.value = text;
+  document.body.append(area);
+  area.select();
+  document.execCommand("copy");
+  area.remove();
+}
+
+async function encodeShareToken(text) {
+  const bytes = new TextEncoder().encode(text);
+  if ("CompressionStream" in window) {
+    const compressed = await new Response(new Blob([bytes]).stream().pipeThrough(new CompressionStream("gzip"))).arrayBuffer();
+    return `gz.${base64UrlEncode(new Uint8Array(compressed))}`;
+  }
+  return `b64.${base64UrlEncode(bytes)}`;
+}
+
+async function decodeShareToken(token) {
+  if (token.startsWith("gz.")) {
+    const bytes = base64UrlDecode(token.slice(3));
+    const text = await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"))).text();
+    return text;
+  }
+  if (token.startsWith("b64.")) {
+    return new TextDecoder().decode(base64UrlDecode(token.slice(4)));
+  }
+  throw new Error("Unknown share token");
+}
+
+function base64UrlEncode(bytes) {
+  let binary = "";
+  bytes.forEach((byte) => {
+    binary += String.fromCharCode(byte);
+  });
+  return btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
+}
+
+function base64UrlDecode(value) {
+  const base64 = value.replaceAll("-", "+").replaceAll("_", "/").padEnd(Math.ceil(value.length / 4) * 4, "=");
+  const binary = atob(base64);
+  return Uint8Array.from(binary, (char) => char.charCodeAt(0));
+}
+
 function normalizeLineup(savedLineup) {
   return createEmptyLineup().map((spot, index) => ({
     ...spot,
@@ -1561,18 +1653,23 @@ function escapeHtml(value) {
 }
 
 buildRows();
-if (!loadState()) {
-  gameDate.valueAsDate = new Date();
-}
-buildLineup();
-updateTotals();
-renderRecords();
+loadSharedViewFromUrl().then((loadedSharedView) => {
+  if (!loadedSharedView && !loadState()) {
+    gameDate.valueAsDate = new Date();
+  }
+  if (!viewOnlyMode) {
+    buildLineup();
+    updateTotals();
+    renderRecords();
+  }
+});
 
 clearButton.addEventListener("click", clearForm);
 sampleButton.addEventListener("click", fillSample);
 exportButton.addEventListener("click", exportCsv);
 driveSaveButton?.addEventListener("click", saveToDrive);
 driveLoadButton?.addEventListener("click", loadFromDrive);
+shareViewButton?.addEventListener("click", createViewLink);
 saveGameButton.addEventListener("click", saveCurrentGame);
 newGameButton.addEventListener("click", resetCurrentGame);
 plateForm.addEventListener("submit", addPlateRecord);
