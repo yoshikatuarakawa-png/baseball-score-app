@@ -858,6 +858,9 @@ function saveCurrentGame() {
     pitchTotal: pitches.total,
     pitchSummary: pitches,
     currentOuts,
+    currentCount: structuredClone(currentCount),
+    pitcherCounts: structuredClone(pitcherCounts),
+    activePitcher: pitcherName.value,
     scoreRows: snapshot,
     lineups: structuredClone(lineups),
     records: structuredClone(plateRecords),
@@ -887,6 +890,7 @@ function renderGameHistory() {
             <td>${Number(game.records?.length || 0)}</td>
             <td>
               <button class="detail-button" type="button" data-game-id="${game.id}">詳細</button>
+              <button class="detail-button edit-game-button" type="button" data-edit-game-id="${game.id}">編集</button>
             </td>
           </tr>
         `)
@@ -894,7 +898,10 @@ function renderGameHistory() {
     : `<tr class="empty-row"><td colspan="7">試合保存を押すとここに履歴が残ります</td></tr>`;
 
   gameHistoryBody.querySelectorAll(".detail-button").forEach((button) => {
-    button.addEventListener("click", () => showGameDetail(button.dataset.gameId));
+    if (button.dataset.gameId) button.addEventListener("click", () => showGameDetail(button.dataset.gameId));
+  });
+  gameHistoryBody.querySelectorAll(".edit-game-button").forEach((button) => {
+    button.addEventListener("click", () => loadGameForEdit(button.dataset.editGameId));
   });
 }
 
@@ -904,6 +911,9 @@ function showGameDetail(gameId) {
 
   gameDetailTitle.textContent = game.name || "試合詳細";
   gameDetailContent.innerHTML = `
+    <div class="detail-actions">
+      <button class="primary-button" type="button" data-edit-game-id="${game.id}">この試合を編集</button>
+    </div>
     <div class="detail-grid">
       <div><span>日付</span><strong>${escapeHtml(game.date || "")}</strong></div>
       <div><span>スコア</span><strong>${escapeHtml(game.score || "")}</strong></div>
@@ -942,8 +952,54 @@ function showGameDetail(gameId) {
       <p>${escapeHtml(game.notes || "なし")}</p>
     </div>
   `;
+  gameDetailContent.querySelector("[data-edit-game-id]")?.addEventListener("click", () => loadGameForEdit(game.id));
   gameDetailPanel.classList.remove("hidden");
   gameDetailPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function loadGameForEdit(gameId) {
+  const game = gameHistory.find((item) => String(item.id) === String(gameId));
+  if (!game) return;
+  if (!confirm("現在入力中の内容を、この保存済み試合の内容に入れ替えて編集します。よろしいですか？")) {
+    return;
+  }
+
+  gameDate.value = game.date || "";
+  gameName.value = game.name || "";
+  venue.value = game.venue || "";
+  notes.value = game.notes || "";
+  applyScoreRows(game.scoreRows || []);
+  lineups = normalizeLineups(game.lineups || game.lineup);
+  plateRecords = Array.isArray(game.records) ? structuredClone(game.records) : [];
+  pitchRecords = Array.isArray(game.pitchRecords) ? structuredClone(game.pitchRecords) : [];
+  pitcherCounts = normalizePitcherCounts(game.pitcherCounts, pitchRecords);
+  pitcherName.value = game.activePitcher || pitchRecords.at(-1)?.pitcher || "";
+  currentCount = normalizePitcherName(pitcherName.value)
+    ? countForPitcher(pitcherName.value)
+    : { ...emptyPitchCount(), ...(game.currentCount || {}) };
+  currentOuts = Number(game.currentOuts || 0) % 3;
+  statInclude.checked = true;
+  battingTeam.value = "away";
+  buildLineup();
+  updateTotals();
+  renderRecords();
+  renderPitchCounts();
+  gameDetailPanel.classList.add("hidden");
+  saveState();
+  document.querySelector("#scoreSection")?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function applyScoreRows(rows) {
+  rows.forEach((savedRow) => {
+    const row = document.querySelector(`[data-team="${savedRow.team}"]`);
+    if (!row) return;
+    row.querySelector(".team-input").value = savedRow.name || "";
+    row.querySelectorAll(".inning-score").forEach((input, index) => {
+      input.value = savedRow.innings?.[index] || "";
+    });
+    row.querySelector(".hits").value = savedRow.hits || "";
+    row.querySelector(".errors").value = savedRow.errors || "";
+  });
 }
 
 function renderDetailLineup(savedLineup) {
@@ -1097,16 +1153,7 @@ function loadState() {
     battingTeam.value = payload.battingTeam || "away";
     statInclude.checked = payload.statInclude !== false;
 
-    (payload.rows || []).forEach((savedRow) => {
-      const row = document.querySelector(`[data-team="${savedRow.team}"]`);
-      if (!row) return;
-      row.querySelector(".team-input").value = savedRow.name || "";
-      row.querySelectorAll(".inning-score").forEach((input, index) => {
-        input.value = savedRow.innings?.[index] || "";
-      });
-      row.querySelector(".hits").value = savedRow.hits || "";
-      row.querySelector(".errors").value = savedRow.errors || "";
-    });
+    applyScoreRows(payload.rows || []);
     buildBattingOrderOptions();
     battingOrder.value = payload.battingOrder || "1";
     return true;

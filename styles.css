@@ -621,6 +621,11 @@ h2 {
   gap: 16px;
 }
 
+.detail-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
 .detail-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
