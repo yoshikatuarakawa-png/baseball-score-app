@@ -41,7 +41,7 @@ const resultMap = {
 };
 
 const storageKey = "baseball-score-records-v1";
-const GOOGLE_CLIENT_ID = "";
+const GOOGLE_CLIENT_ID = "834735313249-8saeorvms46cs3oldo23d5vtdke9s0jr.apps.googleusercontent.com";
 const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file";
 const DRIVE_SYNC_FILE = "baseball-score-app-data.json";
 const DRIVE_MIME = "application/json";
