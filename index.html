@@ -9,6 +9,7 @@
     <title>野球スコア入力</title>
     <link rel="stylesheet" href="styles.css" />
     <link rel="manifest" href="manifest.webmanifest" />
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
   </head>
   <body>
     <main class="app">
@@ -19,11 +20,14 @@
         </div>
         <div class="actions">
           <button id="exportButton" class="ghost-button" type="button">CSV出力</button>
+          <button id="driveSaveButton" class="ghost-button" type="button">Drive保存</button>
+          <button id="driveLoadButton" class="ghost-button" type="button">Drive読込</button>
           <button id="saveGameButton" class="ghost-button" type="button">試合保存</button>
           <button id="newGameButton" class="ghost-button" type="button">新しい試合</button>
           <button id="clearButton" class="ghost-button" type="button">クリア</button>
           <button id="sampleButton" class="primary-button" type="button">サンプル</button>
         </div>
+        <p id="driveStatus" class="drive-status">Google Drive未接続</p>
       </header>
 
       <nav class="quick-nav" aria-label="スマホ用ショートカット">

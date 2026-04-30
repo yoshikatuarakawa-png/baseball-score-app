@@ -41,12 +41,19 @@ const resultMap = {
 };
 
 const storageKey = "baseball-score-records-v1";
+const GOOGLE_CLIENT_ID = "";
+const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file";
+const DRIVE_SYNC_FILE = "baseball-score-app-data.json";
+const DRIVE_MIME = "application/json";
 const scoreBody = document.querySelector("#scoreBody");
 const resultText = document.querySelector("#resultText");
 const totalRuns = document.querySelector("#totalRuns");
 const clearButton = document.querySelector("#clearButton");
 const sampleButton = document.querySelector("#sampleButton");
 const exportButton = document.querySelector("#exportButton");
+const driveSaveButton = document.querySelector("#driveSaveButton");
+const driveLoadButton = document.querySelector("#driveLoadButton");
+const driveStatus = document.querySelector("#driveStatus");
 const saveGameButton = document.querySelector("#saveGameButton");
 const newGameButton = document.querySelector("#newGameButton");
 const gameDate = document.querySelector("#gameDate");
@@ -106,6 +113,8 @@ let pitcherCounts = {};
 let lineups = createEmptyLineups();
 let gameHistory = [];
 let summarySort = { key: "avg", direction: "desc" };
+let googleTokenClient = null;
+let googleAccessToken = "";
 const baseRecords = Array.isArray(window.BASE_RECORDS) ? window.BASE_RECORDS : [];
 
 function makeNumberInput(className, label) {
@@ -1097,7 +1106,7 @@ function resetCurrentGameFields() {
   renderPitchCounts();
 }
 
-function saveState() {
+function buildStatePayload() {
   const rows = [...scoreBody.querySelectorAll("tr")].map((row) => ({
     team: row.dataset.team,
     name: row.querySelector(".team-input").value,
@@ -1106,7 +1115,9 @@ function saveState() {
     errors: row.querySelector(".errors").value,
   }));
 
-  const payload = {
+  return {
+    version: 1,
+    savedAt: new Date().toISOString(),
     gameDate: gameDate.value,
     venue: venue.value,
     gameName: gameName.value,
@@ -1124,6 +1135,10 @@ function saveState() {
     statInclude: statInclude.checked,
     activePitcher: pitcherName.value,
   };
+}
+
+function saveState() {
+  const payload = buildStatePayload();
   localStorage.setItem(storageKey, JSON.stringify(payload));
 }
 
@@ -1133,33 +1148,42 @@ function loadState() {
 
   try {
     const payload = JSON.parse(raw);
-    gameDate.value = payload.gameDate || "";
-    venue.value = payload.venue || "";
-    gameName.value = payload.gameName || "";
-    notes.value = payload.notes || "";
-    plateRecords = Array.isArray(payload.plateRecords) ? payload.plateRecords : [];
-    pitchRecords = Array.isArray(payload.pitchRecords) ? payload.pitchRecords : [];
-    pitcherCounts = normalizePitcherCounts(payload.pitcherCounts, pitchRecords);
-    pitcherName.value = payload.activePitcher || "";
-    if (normalizePitcherName(pitcherName.value) && !pitcherCounts[normalizePitcherName(pitcherName.value)]) {
-      setCountForPitcher(pitcherName.value, payload.currentCount || emptyPitchCount());
-    }
-    currentCount = normalizePitcherName(pitcherName.value)
-      ? countForPitcher(pitcherName.value)
-      : { ...emptyPitchCount(), ...(payload.currentCount || {}) };
-    currentOuts = Number(payload.currentOuts || 0) % 3;
-    lineups = normalizeLineups(payload.lineups || payload.lineup);
-    gameHistory = Array.isArray(payload.gameHistory) ? payload.gameHistory : [];
-    battingTeam.value = payload.battingTeam || "away";
-    statInclude.checked = payload.statInclude !== false;
-
-    applyScoreRows(payload.rows || []);
-    buildBattingOrderOptions();
-    battingOrder.value = payload.battingOrder || "1";
+    applyStatePayload(payload);
     return true;
   } catch {
     return false;
   }
+}
+
+function applyStatePayload(payload) {
+  gameDate.value = payload.gameDate || "";
+  venue.value = payload.venue || "";
+  gameName.value = payload.gameName || "";
+  notes.value = payload.notes || "";
+  plateRecords = Array.isArray(payload.plateRecords) ? payload.plateRecords : [];
+  pitchRecords = Array.isArray(payload.pitchRecords) ? payload.pitchRecords : [];
+  pitcherCounts = normalizePitcherCounts(payload.pitcherCounts, pitchRecords);
+  pitcherName.value = payload.activePitcher || "";
+  if (normalizePitcherName(pitcherName.value) && !pitcherCounts[normalizePitcherName(pitcherName.value)]) {
+    setCountForPitcher(pitcherName.value, payload.currentCount || emptyPitchCount());
+  }
+  currentCount = normalizePitcherName(pitcherName.value)
+    ? countForPitcher(pitcherName.value)
+    : { ...emptyPitchCount(), ...(payload.currentCount || {}) };
+  currentOuts = Number(payload.currentOuts || 0) % 3;
+  lineups = normalizeLineups(payload.lineups || payload.lineup);
+  gameHistory = Array.isArray(payload.gameHistory) ? payload.gameHistory : [];
+  battingTeam.value = payload.battingTeam || "away";
+  statInclude.checked = payload.statInclude !== false;
+
+  applyScoreRows(payload.rows || []);
+  buildBattingOrderOptions();
+  battingOrder.value = payload.battingOrder || "1";
+  buildLineup();
+  updateTotals();
+  renderRecords();
+  renderPitchCounts();
+  renderGameHistory();
 }
 
 function normalizeLineup(savedLineup) {
@@ -1199,6 +1223,140 @@ function normalizePitcherCounts(savedCounts, records) {
   });
 
   return counts;
+}
+
+function setDriveStatus(message) {
+  if (driveStatus) driveStatus.textContent = message;
+}
+
+function assertDriveConfigured() {
+  if (!GOOGLE_CLIENT_ID) {
+    setDriveStatus("Google Drive設定が必要です");
+    alert("Google Drive同期にはGoogle CloudのOAuthクライアントID設定が必要です。");
+    return false;
+  }
+  if (!window.google?.accounts?.oauth2) {
+    setDriveStatus("Google認証ライブラリ読込中");
+    alert("Google認証の読み込み中です。少し待ってからもう一度押してください。");
+    return false;
+  }
+  return true;
+}
+
+function requestGoogleAccessToken() {
+  if (!assertDriveConfigured()) return Promise.reject(new Error("Google Drive is not configured"));
+  return new Promise((resolve, reject) => {
+    googleTokenClient =
+      googleTokenClient ||
+      google.accounts.oauth2.initTokenClient({
+        client_id: GOOGLE_CLIENT_ID,
+        scope: DRIVE_SCOPE,
+        callback: (response) => {
+          if (response.error) {
+            reject(new Error(response.error));
+            return;
+          }
+          googleAccessToken = response.access_token;
+          setDriveStatus("Google Drive接続中");
+          resolve(googleAccessToken);
+        },
+      });
+    googleTokenClient.requestAccessToken({ prompt: googleAccessToken ? "" : "consent" });
+  });
+}
+
+async function driveRequest(url, options = {}) {
+  const token = googleAccessToken || (await requestGoogleAccessToken());
+  const response = await fetch(url, {
+    ...options,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      ...(options.headers || {}),
+    },
+  });
+  if (!response.ok) {
+    throw new Error(`Google Drive error ${response.status}`);
+  }
+  return response;
+}
+
+async function findDriveSyncFile() {
+  const query = encodeURIComponent(`name='${DRIVE_SYNC_FILE}' and trashed=false`);
+  const response = await driveRequest(
+    `https://www.googleapis.com/drive/v3/files?q=${query}&spaces=drive&fields=files(id,name,modifiedTime)&pageSize=1`,
+  );
+  const data = await response.json();
+  return data.files?.[0] || null;
+}
+
+function multipartBody(metadata, content) {
+  const boundary = "baseball_score_boundary";
+  return {
+    boundary,
+    body: [
+      `--${boundary}`,
+      "Content-Type: application/json; charset=UTF-8",
+      "",
+      JSON.stringify(metadata),
+      `--${boundary}`,
+      `Content-Type: ${DRIVE_MIME}`,
+      "",
+      content,
+      `--${boundary}--`,
+    ].join("\r\n"),
+  };
+}
+
+async function saveToDrive() {
+  try {
+    setDriveStatus("Drive保存中...");
+    await requestGoogleAccessToken();
+    saveState();
+    const content = JSON.stringify(buildStatePayload(), null, 2);
+    const existing = await findDriveSyncFile();
+    if (existing) {
+      await driveRequest(`https://www.googleapis.com/upload/drive/v3/files/${existing.id}?uploadType=media&fields=id,modifiedTime`, {
+        method: "PATCH",
+        headers: { "Content-Type": DRIVE_MIME },
+        body: content,
+      });
+    } else {
+      const multipart = multipartBody({ name: DRIVE_SYNC_FILE, mimeType: DRIVE_MIME }, content);
+      await driveRequest("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,modifiedTime", {
+        method: "POST",
+        headers: { "Content-Type": `multipart/related; boundary=${multipart.boundary}` },
+        body: multipart.body,
+      });
+    }
+    setDriveStatus(`Drive保存済み ${new Date().toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })}`);
+  } catch (error) {
+    console.error(error);
+    setDriveStatus("Drive保存失敗");
+    alert("Google Driveへの保存に失敗しました。設定またはログインを確認してください。");
+  }
+}
+
+async function loadFromDrive() {
+  try {
+    if (!confirm("Google Driveの保存データで、この端末の入力内容を上書きします。よろしいですか？")) return;
+    setDriveStatus("Drive読込中...");
+    await requestGoogleAccessToken();
+    const file = await findDriveSyncFile();
+    if (!file) {
+      setDriveStatus("Driveデータなし");
+      alert("Google Driveに保存データがまだありません。先にDrive保存を押してください。");
+      return;
+    }
+    const response = await driveRequest(`https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`);
+    const payload = await response.json();
+    applyStatePayload(payload);
+    saveState();
+    setDriveStatus(`Drive読込済み ${new Date().toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })}`);
+  } catch (error) {
+    console.error(error);
+    setDriveStatus("Drive読込失敗");
+    alert("Google Driveからの読み込みに失敗しました。");
+  }
 }
 
 function clearForm() {
@@ -1413,6 +1571,8 @@ renderRecords();
 clearButton.addEventListener("click", clearForm);
 sampleButton.addEventListener("click", fillSample);
 exportButton.addEventListener("click", exportCsv);
+driveSaveButton?.addEventListener("click", saveToDrive);
+driveLoadButton?.addEventListener("click", loadFromDrive);
 saveGameButton.addEventListener("click", saveCurrentGame);
 newGameButton.addEventListener("click", resetCurrentGame);
 plateForm.addEventListener("submit", addPlateRecord);
