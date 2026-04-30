@@ -349,6 +349,19 @@ h2 {
   grid-column: span 3;
 }
 
+.check-field {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink);
+}
+
+.check-field input {
+  width: 18px;
+  min-height: 18px;
+}
+
 .add-button {
   width: 100%;
 }

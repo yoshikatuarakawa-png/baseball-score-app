@@ -63,6 +63,7 @@ const plateResult = document.querySelector("#plateResult");
 const steals = document.querySelector("#steals");
 const stealsOther = document.querySelector("#stealsOther");
 const plateMemo = document.querySelector("#plateMemo");
+const statInclude = document.querySelector("#statInclude");
 const pitcherName = document.querySelector("#pitcherName");
 const pitchButtons = [...document.querySelectorAll(".pitch-button")];
 const undoPitchButton = document.querySelector("#undoPitchButton");
@@ -383,6 +384,7 @@ function addPlateRecord(event) {
     game: currentGameLabel(),
     gameDate: gameDate.value,
     team: battingTeam.value,
+    countStats: statInclude.checked,
     batter: name,
     battingOrder: lineupSpot?.order || "",
     position: lineupSpot?.position || "",
@@ -475,6 +477,14 @@ function seasonPlateRecords() {
   });
 }
 
+function statSeasonPlateRecords() {
+  return seasonPlateRecords().filter((record) => record.countStats !== false);
+}
+
+function logRecords() {
+  return [...seasonPlateRecords(), ...baseRecords];
+}
+
 function renderPlayerList(summary) {
   const lineupNames = Object.values(lineups)
     .flat()
@@ -501,7 +511,7 @@ function renderRecords() {
     { pa: 0, hit: 0, ob: 0 },
   );
   const baseTotal = baseRecords.reduce((sum, row) => sum + Number(row.pa || 0), 0);
-  const addedTotal = seasonPlateRecords().reduce((sum, row) => sum + Number(row.pa || 0), 0);
+  const addedTotal = statSeasonPlateRecords().reduce((sum, row) => sum + Number(row.pa || 0), 0);
   basePa.textContent = String(baseTotal);
   addedPa.textContent = String(addedTotal);
   allPa.textContent = String(totals.pa);
@@ -556,10 +566,10 @@ function renderRecords() {
         .join("")
     : `<tr class="empty-row"><td colspan="16">まだ打席記録がありません</td></tr>`;
 
-  const logRecords = allRecords();
-  if (plateLogCount) plateLogCount.textContent = `${logRecords.length}件`;
-  plateLogBody.innerHTML = logRecords.length
-    ? logRecords
+  const rowsForLog = logRecords();
+  if (plateLogCount) plateLogCount.textContent = `${rowsForLog.length}件`;
+  plateLogBody.innerHTML = rowsForLog.length
+    ? rowsForLog
         .map((record) => `
           <tr>
             <td>${escapeHtml(record.game)}</td>
@@ -577,7 +587,7 @@ function renderRecords() {
             <td>${record.sac}</td>
             <td>${record.steal}</td>
             <td>${record.ob}</td>
-            <td>${escapeHtml(record.source === "base" ? "基データ" : record.memo)}</td>
+            <td>${escapeHtml(record.source === "base" ? "基データ" : record.countStats === false ? `相手記録 ${record.memo || ""}` : record.memo)}</td>
           </tr>
         `)
         .join("")
@@ -633,7 +643,7 @@ function changeSummarySort(event) {
 }
 
 function allRecords() {
-  return [...seasonPlateRecords(), ...baseRecords];
+  return [...statSeasonPlateRecords(), ...baseRecords];
 }
 
 function emptyPitchCount() {
@@ -1018,6 +1028,7 @@ function resetCurrentGameFields() {
   document.querySelector('[data-team="home"] .team-input').value = "ホーム";
   steals.value = "0";
   stealsOther.value = "0";
+  statInclude.checked = true;
   plateRecords = [];
   pitchRecords = [];
   currentCount = emptyPitchCount();
@@ -1054,6 +1065,7 @@ function saveState() {
     gameHistory,
     battingTeam: battingTeam.value,
     battingOrder: battingOrder.value,
+    statInclude: statInclude.checked,
     activePitcher: pitcherName.value,
   };
   localStorage.setItem(storageKey, JSON.stringify(payload));
@@ -1083,6 +1095,7 @@ function loadState() {
     lineups = normalizeLineups(payload.lineups || payload.lineup);
     gameHistory = Array.isArray(payload.gameHistory) ? payload.gameHistory : [];
     battingTeam.value = payload.battingTeam || "away";
+    statInclude.checked = payload.statInclude !== false;
 
     (payload.rows || []).forEach((savedRow) => {
       const row = document.querySelector(`[data-team="${savedRow.team}"]`);
@@ -1240,6 +1253,7 @@ function makeSampleRecord(batter, key, steal, stealOther, memo) {
     source: "added",
     game: currentGameLabel(),
     gameDate: gameDate.value,
+    countStats: true,
     batter,
     battingOrder: lineupSpot?.order || "",
     position: lineupSpot?.position || "",
@@ -1271,6 +1285,7 @@ function exportCsv() {
     "チーム",
     "打順",
     "区分",
+    "成績反映",
     "打者",
     "ポジション",
     "打席",
@@ -1290,12 +1305,13 @@ function exportCsv() {
     "出塁",
     "メモ",
   ];
-  const rows = allRecords().map((record) => [
+  const rows = logRecords().map((record) => [
     record.game,
     record.gameDate || "",
     record.team === "home" ? "後攻" : record.team === "away" ? "先攻" : "",
     record.battingOrder || "",
     record.isPinchHitter ? "代打" : "",
+    record.countStats === false ? "対象外" : "反映",
     record.batter,
     record.position || "",
     record.pa,
@@ -1372,4 +1388,4 @@ addOutButton.addEventListener("click", addOut);
 undoOutButton.addEventListener("click", undoOut);
 pitcherName.addEventListener("input", syncCurrentCountFromPitcher);
 sortButtons.forEach((button) => button.addEventListener("click", changeSummarySort));
-[gameDate, venue, gameName, notes, pitcherName].forEach((field) => field.addEventListener("change", saveState));
+[gameDate, venue, gameName, notes, pitcherName, statInclude].forEach((field) => field.addEventListener("change", saveState));
