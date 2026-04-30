@@ -1194,9 +1194,7 @@ async function loadSharedViewFromUrl() {
   const publicFileId = params.get("viewFile");
   if (publicFileId) {
     try {
-      const response = await fetch(`https://drive.google.com/uc?export=download&id=${encodeURIComponent(publicFileId)}`);
-      if (!response.ok) throw new Error(`Public view fetch failed ${response.status}`);
-      const payload = await response.json();
+      const payload = await fetchPublicViewPayload(publicFileId);
       applyStatePayload(payload);
       enableViewOnlyMode();
       return true;
@@ -1220,6 +1218,26 @@ async function loadSharedViewFromUrl() {
     alert("閲覧リンクの読み込みに失敗しました。新しいリンクを送ってもらってください。");
     return false;
   }
+}
+
+async function fetchPublicViewPayload(fileId) {
+  const urls = [
+    `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media`,
+    `https://drive.google.com/uc?export=download&id=${encodeURIComponent(fileId)}`,
+  ];
+
+  let lastError = null;
+  for (const url of urls) {
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`Public view fetch failed ${response.status}`);
+      const text = await response.text();
+      return JSON.parse(text);
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError || new Error("Public view fetch failed");
 }
 
 function enableViewOnlyMode() {
