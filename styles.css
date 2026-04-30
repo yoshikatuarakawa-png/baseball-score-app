@@ -736,36 +736,71 @@ h2 {
 }
 
 @media (max-width: 720px) {
+  html {
+    scroll-padding-bottom: 78px;
+  }
+
   body {
     background-attachment: scroll;
+    background:
+      linear-gradient(180deg, rgba(22, 107, 79, 0.18), rgba(246, 244, 239, 0.94) 210px),
+      var(--bg);
   }
 
   .app {
     width: 100%;
     min-height: 100vh;
     margin: 0;
-    padding: 12px;
+    padding: 10px 10px 86px;
     border: 0;
     border-radius: 0;
+    box-shadow: none;
   }
 
   .topbar {
     align-items: stretch;
     flex-direction: column;
-    gap: 12px;
-    padding-bottom: 12px;
+    gap: 10px;
+    padding-bottom: 10px;
+  }
+
+  h1 {
+    font-size: 1.42rem;
   }
 
   .actions {
     width: 100%;
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
   }
 
   .actions button {
     width: 100%;
-    min-height: 46px;
+    min-height: 44px;
     padding: 0 8px;
+    font-size: 0.92rem;
+  }
+
+  .quick-nav {
+    position: fixed;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    top: auto;
+    z-index: 20;
+    justify-content: flex-start;
+    margin: 0;
+    padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--line);
+    box-shadow: 0 -8px 24px rgba(30, 37, 40, 0.12);
+  }
+
+  .quick-nav a {
+    min-width: 72px;
+    padding: 10px 12px;
+    text-align: center;
+    font-size: 0.86rem;
   }
 
   .game-meta,
@@ -776,6 +811,11 @@ h2 {
   .current-count,
   .detail-grid {
     grid-template-columns: 1fr;
+  }
+
+  .game-meta {
+    gap: 10px;
+    margin: 14px 0;
   }
 
   .section-heading {
@@ -802,35 +842,37 @@ h2 {
   }
 
   .panel {
-    margin-top: 18px;
-    padding-top: 18px;
-    scroll-margin-top: 54px;
+    margin-top: 16px;
+    padding-top: 16px;
+    scroll-margin-top: 10px;
+    scroll-margin-bottom: 88px;
   }
 
   .scoreboard-wrap {
-    scroll-margin-top: 54px;
+    scroll-margin-top: 10px;
   }
 
   .scoreboard {
-    min-width: 690px;
+    min-width: 640px;
   }
 
   th,
   td {
-    padding: 6px;
+    padding: 6px 5px;
+    font-size: 0.82rem;
   }
 
   td:first-child,
   th:first-child {
-    min-width: 128px;
+    min-width: 118px;
   }
 
   .score-input {
-    width: 42px;
+    width: 38px;
   }
 
   .stat-input {
-    width: 48px;
+    width: 44px;
   }
 
   .lineup-table,
@@ -843,21 +885,31 @@ h2 {
     min-width: 1040px;
   }
 
+  .pitch-controls {
+    gap: 10px;
+  }
+
   .pitch-buttons {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .pitch-button {
-    min-height: 64px;
-    font-size: 1.08rem;
+    min-height: 60px;
+    padding: 0 6px;
+    font-size: 1rem;
   }
 
   .current-count {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .current-count div {
+    padding: 10px 8px;
   }
 
   .current-count strong {
-    font-size: 2.2rem;
+    font-size: 2rem;
   }
 
   .pitch-totals {
@@ -868,9 +920,30 @@ h2 {
     gap: 10px;
   }
 
+  .pinch-status {
+    min-height: 40px;
+  }
+
+  .check-field {
+    min-height: 38px;
+  }
+
   .add-button {
     min-height: 58px;
     font-size: 1.05rem;
+  }
+
+  .detail-actions {
+    justify-content: stretch;
+  }
+
+  .detail-actions button {
+    width: 100%;
+  }
+
+  .collapsible-panel summary {
+    min-height: 52px;
+    padding: 10px 12px;
   }
 
   input,
@@ -881,5 +954,24 @@ h2 {
 
   textarea {
     font-size: 16px;
+  }
+}
+
+@media (max-width: 390px) {
+  .actions {
+    grid-template-columns: 1fr;
+  }
+
+  .pitch-buttons {
+    grid-template-columns: 1fr;
+  }
+
+  .quick-nav a {
+    min-width: 64px;
+    padding: 9px 10px;
+  }
+
+  .current-count strong {
+    font-size: 1.8rem;
   }
 }
