@@ -461,6 +461,20 @@ function summarizeRecords() {
   }, {});
 }
 
+function savedPlateRecords() {
+  return gameHistory.flatMap((game) => (Array.isArray(game.records) ? game.records : []));
+}
+
+function seasonPlateRecords() {
+  const seen = new Set();
+  return [...plateRecords, ...savedPlateRecords()].filter((record) => {
+    const key = record.id ?? `${record.game}-${record.batter}-${record.result}-${record.memo}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 function renderPlayerList(summary) {
   const lineupNames = Object.values(lineups)
     .flat()
@@ -487,7 +501,7 @@ function renderRecords() {
     { pa: 0, hit: 0, ob: 0 },
   );
   const baseTotal = baseRecords.reduce((sum, row) => sum + Number(row.pa || 0), 0);
-  const addedTotal = plateRecords.reduce((sum, row) => sum + Number(row.pa || 0), 0);
+  const addedTotal = seasonPlateRecords().reduce((sum, row) => sum + Number(row.pa || 0), 0);
   basePa.textContent = String(baseTotal);
   addedPa.textContent = String(addedTotal);
   allPa.textContent = String(totals.pa);
@@ -619,7 +633,7 @@ function changeSummarySort(event) {
 }
 
 function allRecords() {
-  return [...plateRecords, ...baseRecords];
+  return [...seasonPlateRecords(), ...baseRecords];
 }
 
 function emptyPitchCount() {
