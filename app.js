@@ -1347,6 +1347,10 @@ function buildViewOnlyText(payload) {
     lines.push("なし");
   }
 
+  lines.push("");
+  lines.push("■ 通算成績ランキング（上位5名）");
+  appendPlayerRankingText(lines, buildPlayerRankingRows());
+
   if (payload.notes) {
     lines.push("");
     lines.push("■ メモ");
@@ -1354,6 +1358,102 @@ function buildViewOnlyText(payload) {
   }
 
   return lines.join("\n");
+}
+
+function buildPlayerRankingRows() {
+  return Object.entries(summarizeRecords())
+    .map(([name, row]) => {
+      const obDenominator = row.ab + row.bb + row.hbp + row.sac;
+      const totalBases = row.hit + row.double + row.triple * 2 + row.hr * 3;
+      const obp = calculateRate(row.ob, obDenominator);
+      return {
+        name,
+        row,
+        avg: calculateRate(row.hit, row.ab),
+        obp,
+        ops: obp + calculateRate(totalBases, row.ab),
+        kRate: calculateRate(row.k, row.ab),
+        obDenominator,
+      };
+    })
+    .filter((item) => item.row.pa > 0);
+}
+
+function appendPlayerRankingText(lines, rows) {
+  const rankingItems = [
+    {
+      label: "打率",
+      value: (item) => item.avg,
+      eligible: (item) => item.row.ab > 0,
+      format: (item) => `${formatRate(item.row.hit, item.row.ab)} (${item.row.hit}/${item.row.ab})`,
+    },
+    {
+      label: "出塁率",
+      value: (item) => item.obp,
+      eligible: (item) => item.obDenominator > 0,
+      format: (item) => `${formatRate(item.row.ob, item.obDenominator)} (${item.row.ob}/${item.obDenominator})`,
+    },
+    {
+      label: "OPS",
+      value: (item) => item.ops,
+      eligible: (item) => item.obDenominator > 0,
+      format: (item) => item.ops.toFixed(3).replace(/^0/, ""),
+    },
+    { label: "打席", value: (item) => item.row.pa, format: (item) => `${item.row.pa}打席` },
+    { label: "打数", value: (item) => item.row.ab, format: (item) => `${item.row.ab}打数` },
+    { label: "出塁回数", value: (item) => item.row.ob, format: (item) => `${item.row.ob}回` },
+    { label: "安打", value: (item) => item.row.hit, format: (item) => `${item.row.hit}本` },
+    { label: "二塁打", value: (item) => item.row.double, format: (item) => `${item.row.double}本` },
+    { label: "三塁打", value: (item) => item.row.triple, format: (item) => `${item.row.triple}本` },
+    { label: "本塁打", value: (item) => item.row.hr, format: (item) => `${item.row.hr}本` },
+    { label: "四球", value: (item) => item.row.bb, format: (item) => `${item.row.bb}個` },
+    { label: "死球", value: (item) => item.row.hbp, format: (item) => `${item.row.hbp}個` },
+    { label: "三振", value: (item) => item.row.k, format: (item) => `${item.row.k}個` },
+    {
+      label: "三振率（低い順）",
+      value: (item) => item.kRate,
+      direction: "asc",
+      eligible: (item) => item.row.ab > 0,
+      format: (item) => `${formatRate(item.row.k, item.row.ab)} (${item.row.k}/${item.row.ab})`,
+    },
+    { label: "盗塁", value: (item) => item.row.steal, format: (item) => `${item.row.steal}個` },
+  ];
+
+  rankingItems.forEach((item, index) => {
+    lines.push(`【${item.label}】`);
+    const ranked = rankPlayerRows(rows, item);
+    if (!ranked.length) {
+      lines.push("なし");
+    } else {
+      ranked.forEach(({ row, rank }) => {
+        lines.push(`${rank}位 ${row.name}: ${item.format(row)}`);
+      });
+    }
+    if (index < rankingItems.length - 1) lines.push("");
+  });
+}
+
+function rankPlayerRows(rows, item) {
+  const eligible = item.eligible || ((row) => item.value(row) > 0);
+  const direction = item.direction || "desc";
+  const sorted = rows
+    .filter((row) => eligible(row))
+    .sort((a, b) => {
+      const diff = item.value(a) - item.value(b);
+      if (diff !== 0) return direction === "asc" ? diff : -diff;
+      return a.name.localeCompare(b.name, "ja");
+    })
+    .slice(0, 5);
+
+  let previousValue = null;
+  let previousRank = 0;
+  return sorted.map((row, index) => {
+    const value = item.value(row);
+    const rank = previousValue === value ? previousRank : index + 1;
+    previousValue = value;
+    previousRank = rank;
+    return { row, rank };
+  });
 }
 
 async function shareViewFile(html, filename) {
