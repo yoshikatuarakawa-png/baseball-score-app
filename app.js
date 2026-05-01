@@ -1191,6 +1191,18 @@ function applyStatePayload(payload) {
 
 async function loadSharedViewFromUrl() {
   const params = new URLSearchParams(window.location.search);
+  const token = params.get("view");
+  if (token) {
+    try {
+      const payload = JSON.parse(await decodeShareToken(token));
+      applyStatePayload(payload);
+      enableViewOnlyMode();
+      return true;
+    } catch (error) {
+      console.error(error);
+    }
+  }
+
   const publicFileId = params.get("viewFile");
   if (publicFileId) {
     try {
@@ -1205,19 +1217,10 @@ async function loadSharedViewFromUrl() {
     }
   }
 
-  const token = params.get("view");
-  if (!token) return false;
-
-  try {
-    const payload = JSON.parse(await decodeShareToken(token));
-    applyStatePayload(payload);
-    enableViewOnlyMode();
-    return true;
-  } catch (error) {
-    console.error(error);
+  if (token) {
     alert("閲覧リンクの読み込みに失敗しました。新しいリンクを送ってもらってください。");
-    return false;
   }
+  return false;
 }
 
 async function fetchPublicViewPayload(fileId) {
@@ -1256,9 +1259,11 @@ async function createViewLink() {
     saveState();
     setDriveStatus("閲覧リンク作成中...");
     await requestGoogleAccessToken();
-    const publicFile = await savePublicViewFile(JSON.stringify(buildStatePayload(), null, 2));
+    const payloadText = JSON.stringify(buildStatePayload(), null, 2);
+    const publicFile = await savePublicViewFile(payloadText);
     await makeDriveFilePublic(publicFile.id);
-    const url = `${location.origin}${location.pathname}?viewFile=${encodeURIComponent(publicFile.id)}`;
+    const token = await encodeShareToken(payloadText);
+    const url = `${location.origin}${location.pathname}?view=${encodeURIComponent(token)}&viewFile=${encodeURIComponent(publicFile.id)}`;
     await shareViewUrl(url);
   } catch (error) {
     console.error(error);
