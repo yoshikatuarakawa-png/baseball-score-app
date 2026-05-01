@@ -781,8 +781,8 @@ function undoOut() {
   saveState();
 }
 
-function summarizePitches() {
-  return pitchRecords.reduce((summary, pitch) => {
+function summarizePitches(records = pitchRecords) {
+  return records.reduce((summary, pitch) => {
     summary[pitch.pitcher] = summary[pitch.pitcher] || { total: 0, strike: 0, ball: 0, foul: 0 };
     summary[pitch.pitcher].total += 1;
     summary[pitch.pitcher][pitch.type] += 1;
@@ -926,6 +926,7 @@ function showGameDetail(gameId) {
   gameDetailTitle.textContent = game.name || "試合詳細";
   gameDetailContent.innerHTML = `
     <div class="detail-actions">
+      <button class="ghost-button" type="button" data-pdf-game-id="${game.id}">PDF</button>
       <button class="primary-button" type="button" data-edit-game-id="${game.id}">この試合を編集</button>
     </div>
     <div class="detail-grid">
@@ -967,6 +968,7 @@ function showGameDetail(gameId) {
     </div>
   `;
   gameDetailContent.querySelector("[data-edit-game-id]")?.addEventListener("click", () => loadGameForEdit(game.id));
+  gameDetailContent.querySelector("[data-pdf-game-id]")?.addEventListener("click", () => shareSavedGamePdf(game.id));
   gameDetailPanel.classList.remove("hidden");
   gameDetailPanel.scrollIntoView({ behavior: "smooth", block: "start" });
 }
@@ -1465,41 +1467,105 @@ function rankPlayerRows(rows, item) {
 async function shareGamePdf() {
   try {
     saveState();
-    setDriveStatus("試合PDF作成中...");
-    const canvas = buildGameResultCanvas();
-    const blob = await canvasToPdfBlob(canvas);
-    const safeDate = gameDate.value || new Date().toISOString().slice(0, 10);
-    const filename = `baseball-game-${safeDate}.pdf`;
-    const file = new File([blob], filename, { type: "application/pdf" });
-
-    if (navigator.canShare?.({ files: [file] })) {
-      try {
-        await navigator.share({
-          title: "試合結果PDF",
-          text: "試合結果を1枚にまとめたPDFです。",
-          files: [file],
-        });
-        setDriveStatus("試合PDFを共有しました");
-        return;
-      } catch (error) {
-        if (error?.name === "AbortError") {
-          setDriveStatus("共有をキャンセルしました");
-          return;
-        }
-        console.warn(error);
-      }
-    }
-
-    downloadBlob(blob, filename);
-    setDriveStatus("試合PDFを保存しました");
-    alert("試合PDFを保存しました。このPDFをLINEなどで送ってください。");
+    await shareGamePdfData(currentGamePdfData(), "試合PDF");
   } catch (error) {
     console.error(error);
     alert("試合PDFを作成できませんでした。もう一度お試しください。");
   }
 }
 
-function buildGameResultCanvas() {
+async function shareSavedGamePdf(gameId) {
+  const game = gameHistory.find((item) => String(item.id) === String(gameId));
+  if (!game) return;
+  try {
+    await shareGamePdfData(savedGamePdfData(game), "試合履歴PDF");
+  } catch (error) {
+    console.error(error);
+    alert("試合履歴PDFを作成できませんでした。もう一度お試しください。");
+  }
+}
+
+async function shareGamePdfData(data, statusLabel) {
+  setDriveStatus(`${statusLabel}作成中...`);
+  const canvas = buildGameResultCanvas(data);
+  const blob = await canvasToPdfBlob(canvas);
+  const safeDate = safeFilePart(data.date || new Date().toISOString().slice(0, 10));
+  const filename = `baseball-game-${safeDate}.pdf`;
+  const file = new File([blob], filename, { type: "application/pdf" });
+
+  if (navigator.canShare?.({ files: [file] })) {
+    try {
+      await navigator.share({
+        title: statusLabel,
+        text: "試合結果を1枚にまとめたPDFです。",
+        files: [file],
+      });
+      setDriveStatus(`${statusLabel}を共有しました`);
+      return;
+    } catch (error) {
+      if (error?.name === "AbortError") {
+        setDriveStatus("共有をキャンセルしました");
+        return;
+      }
+      console.warn(error);
+    }
+  }
+
+  downloadBlob(blob, filename);
+  setDriveStatus(`${statusLabel}を保存しました`);
+  alert(`${statusLabel}を保存しました。このPDFをLINEなどで送ってください。`);
+}
+
+function currentGamePdfData() {
+  return {
+    date: gameDate.value,
+    name: gameName.value.trim(),
+    venue: venue.value.trim(),
+    notes: notes.value.trim(),
+    scoreRows: currentScoreSnapshot(),
+    lineups,
+    records: plateRecords,
+    pitchRecords,
+    currentOuts,
+    currentCount,
+    activePitcher: pitcherName.value,
+  };
+}
+
+function savedGamePdfData(game) {
+  return {
+    date: game.date || "",
+    name: game.name || "",
+    venue: game.venue || "",
+    notes: game.notes || "",
+    score: game.score || "",
+    scoreRows: scoreRowsWithRuns(game.scoreRows || []),
+    lineups: normalizeLineups(game.lineups || game.lineup),
+    records: Array.isArray(game.records) ? game.records : [],
+    pitchRecords: Array.isArray(game.pitchRecords) ? game.pitchRecords : [],
+    currentOuts: Number(game.currentOuts || 0) % 3,
+    currentCount: { ...emptyPitchCount(), ...(game.currentCount || {}) },
+    activePitcher: game.activePitcher || "",
+  };
+}
+
+function scoreRowsWithRuns(rows) {
+  return (rows.length ? rows : createEmptyScoreRows()).map((row) => {
+    const innings = Array.from({ length: 9 }, (_, index) => row.innings?.[index] || "");
+    const inningRuns = innings.reduce((sum, score) => sum + Number(score || 0), 0);
+    const runs = row.runs === undefined || row.runs === null || row.runs === "" ? inningRuns : Number(row.runs || 0);
+    return { ...row, innings, runs };
+  });
+}
+
+function createEmptyScoreRows() {
+  return [
+    { team: "away", name: "ビジター", innings: Array(9).fill(""), runs: 0, hits: "", errors: "" },
+    { team: "home", name: "ホーム", innings: Array(9).fill(""), runs: 0, hits: "", errors: "" },
+  ];
+}
+
+function buildGameResultCanvas(data = currentGamePdfData()) {
   const width = 1240;
   const height = 1754;
   const margin = 36;
@@ -1508,9 +1574,9 @@ function buildGameResultCanvas() {
   canvas.height = height;
   const ctx = canvas.getContext("2d");
   const contentWidth = width - margin * 2;
-  const scoreRows = currentScoreSnapshot();
-  const pitches = pitchTotals();
-  const scoreText = scoreLabel(scoreRows) || "スコア未入力";
+  const scoreRows = scoreRowsWithRuns(data.scoreRows || []);
+  const pitches = pitchTotals(data.pitchRecords || []);
+  const scoreText = data.score || scoreLabel(scoreRows) || "スコア未入力";
 
   ctx.fillStyle = "#f6f4ef";
   ctx.fillRect(0, 0, width, height);
@@ -1523,19 +1589,19 @@ function buildGameResultCanvas() {
   ctx.fillText("試合結果", margin, margin + 44);
   ctx.fillStyle = "#667076";
   ctx.font = '700 22px "Yu Gothic", "Segoe UI", sans-serif';
-  drawWrappedText(ctx, [gameDate.value, gameName.value.trim(), venue.value.trim()].filter(Boolean).join(" / ") || "試合情報なし", margin, margin + 78, contentWidth, 26, 1);
+  drawWrappedText(ctx, [data.date, data.name, data.venue].filter(Boolean).join(" / ") || "試合情報なし", margin, margin + 78, contentWidth, 26, 1);
 
   drawScoreboardPdf(ctx, scoreRows, margin, 140, contentWidth);
-  drawGameInfoBoxes(ctx, scoreText, pitches.total, plateRecords.length, currentOuts, margin, 298, contentWidth);
-  drawLineupPdf(ctx, margin, 398, contentWidth, 320);
-  drawPlateRecordsPdf(ctx, margin, 748, 738, 760);
-  drawPitchSummaryPdf(ctx, margin + 762, 748, contentWidth - 762, 282);
-  drawNotesPdf(ctx, margin + 762, 1058, contentWidth - 762, 230);
-  drawCurrentCountPdf(ctx, margin + 762, 1316, contentWidth - 762, 192);
+  drawGameInfoBoxes(ctx, scoreText, pitches.total, (data.records || []).length, data.currentOuts || 0, margin, 298, contentWidth);
+  drawLineupPdf(ctx, data.lineups || createEmptyLineups(), margin, 398, contentWidth, 320);
+  drawPlateRecordsPdf(ctx, data.records || [], margin, 748, 738, 760);
+  drawPitchSummaryPdf(ctx, data.pitchRecords || [], margin + 762, 748, contentWidth - 762, 282);
+  drawNotesPdf(ctx, data.notes || "", margin + 762, 1058, contentWidth - 762, 230);
+  drawCurrentCountPdf(ctx, data.activePitcher || "", data.currentCount || emptyPitchCount(), data.currentOuts || 0, margin + 762, 1316, contentWidth - 762, 192);
 
   ctx.fillStyle = "#667076";
   ctx.font = '700 19px "Yu Gothic", "Segoe UI", sans-serif';
-  ctx.fillText("※このPDFは現在入力中の試合内容を1枚にまとめています。", margin, height - margin - 8);
+  ctx.fillText("※このPDFは試合内容を1枚にまとめています。", margin, height - margin - 8);
   return canvas;
 }
 
@@ -1591,11 +1657,11 @@ function drawGameInfoBoxes(ctx, scoreText, pitchTotal, plateTotal, outs, x, y, w
   });
 }
 
-function drawLineupPdf(ctx, x, y, width, height) {
+function drawLineupPdf(ctx, savedLineups, x, y, width, height) {
   const gap = 16;
   const columnWidth = (width - gap) / 2;
-  drawLineupTeamPdf(ctx, "先攻", lineups.away || [], x, y, columnWidth, height);
-  drawLineupTeamPdf(ctx, "後攻", lineups.home || [], x + columnWidth + gap, y, columnWidth, height);
+  drawLineupTeamPdf(ctx, "先攻", savedLineups.away || [], x, y, columnWidth, height);
+  drawLineupTeamPdf(ctx, "後攻", savedLineups.home || [], x + columnWidth + gap, y, columnWidth, height);
 }
 
 function drawLineupTeamPdf(ctx, title, lineup, x, y, width, height) {
@@ -1612,9 +1678,9 @@ function drawLineupTeamPdf(ctx, title, lineup, x, y, width, height) {
   });
 }
 
-function drawPlateRecordsPdf(ctx, x, y, width, height) {
+function drawPlateRecordsPdf(ctx, savedRecords, x, y, width, height) {
   drawPdfPanel(ctx, "打席結果", x, y, width, height);
-  const records = [...plateRecords].reverse();
+  const records = [...savedRecords].reverse();
   const rowHeight = 34;
   const headerY = y + 46;
   const columns = [58, 70, 150, 180, width - 58 - 70 - 150 - 180 - 28];
@@ -1645,9 +1711,9 @@ function drawPlateRecordsPdf(ctx, x, y, width, height) {
   }
 }
 
-function drawPitchSummaryPdf(ctx, x, y, width, height) {
+function drawPitchSummaryPdf(ctx, savedPitchRecords, x, y, width, height) {
   drawPdfPanel(ctx, "投球数", x, y, width, height);
-  const rows = Object.entries(summarizePitches()).sort((a, b) => b[1].total - a[1].total || a[0].localeCompare(b[0], "ja"));
+  const rows = Object.entries(summarizePitches(savedPitchRecords)).sort((a, b) => b[1].total - a[1].total || a[0].localeCompare(b[0], "ja"));
   const rowHeight = 34;
   const top = y + 52;
   const headers = ["投手", "球", "S", "B", "F"];
@@ -1672,21 +1738,21 @@ function drawPitchSummaryPdf(ctx, x, y, width, height) {
   if (!rows.length) drawEmptyPdfText(ctx, "投球記録はありません", x + 18, top + 62, width - 36);
 }
 
-function drawNotesPdf(ctx, x, y, width, height) {
+function drawNotesPdf(ctx, savedNotes, x, y, width, height) {
   drawPdfPanel(ctx, "メモ", x, y, width, height);
-  const text = notes.value.trim() || "メモはありません。";
+  const text = savedNotes || "メモはありません。";
   ctx.fillStyle = "#1e2528";
   ctx.font = '600 18px "Yu Gothic", "Segoe UI", sans-serif';
   drawWrappedText(ctx, text, x + 18, y + 58, width - 36, 26, 6);
 }
 
-function drawCurrentCountPdf(ctx, x, y, width, height) {
+function drawCurrentCountPdf(ctx, activePitcher, count, outs, x, y, width, height) {
   drawPdfPanel(ctx, "現在のカウント", x, y, width, height);
-  const pitcher = normalizePitcherName(pitcherName.value) || "未入力";
+  const pitcher = normalizePitcherName(activePitcher) || "未入力";
   const rows = [
     `投手: ${pitcher}`,
-    `B ${currentCount.balls} / S ${currentCount.strikes} / F ${currentCount.fouls}`,
-    `累計 ${currentCount.total}球 / ${currentOuts}アウト`,
+    `B ${count.balls || 0} / S ${count.strikes || 0} / F ${count.fouls || 0}`,
+    `累計 ${count.total || 0}球 / ${outs}アウト`,
   ];
   ctx.fillStyle = "#1e2528";
   ctx.font = '700 20px "Yu Gothic", "Segoe UI", sans-serif';
@@ -1997,6 +2063,10 @@ function downloadBlob(blob, filename) {
   link.click();
   link.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function safeFilePart(value) {
+  return String(value || "未日付").replace(/[\\/:*?"<>|]/g, "-");
 }
 
 async function shareViewFile(html, filename) {
