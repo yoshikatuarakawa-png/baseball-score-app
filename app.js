@@ -1257,16 +1257,103 @@ function enableViewOnlyMode() {
 async function createViewLink() {
   try {
     saveState();
-    const payloadText = JSON.stringify(buildStatePayload(), null, 2);
-    const html = buildViewOnlyHtml(payloadText);
-    const safeDate = gameDate.value || new Date().toISOString().slice(0, 10);
-    const filename = `baseball-score-view-${safeDate}.html`;
-    setDriveStatus("閲覧用ファイル作成中...");
-    await shareViewFile(html, filename);
+    setDriveStatus("閲覧用データ作成中...");
+    await shareViewText(buildViewOnlyText(buildStatePayload()));
   } catch (error) {
     console.error(error);
-    alert("閲覧用ファイルを作成できませんでした。もう一度お試しください。");
+    alert("閲覧用データを作成できませんでした。もう一度お試しください。");
   }
+}
+
+async function shareViewText(text) {
+  if (navigator.share) {
+    try {
+      await navigator.share({
+        title: "野球スコア閲覧用",
+        text,
+      });
+      setDriveStatus("閲覧用データを共有しました");
+      return;
+    } catch (error) {
+      if (error?.name === "AbortError") {
+        setDriveStatus("共有をキャンセルしました");
+        return;
+      }
+      console.warn(error);
+    }
+  }
+
+  await copyText(text);
+  setDriveStatus("閲覧用データをコピーしました");
+  alert("閲覧用データをコピーしました。LINEなどに貼り付けて送れます。");
+}
+
+function buildViewOnlyText(payload) {
+  const teamLabels = { away: "先攻", home: "後攻" };
+  const lines = [];
+  lines.push("【野球スコア閲覧用】");
+  lines.push([payload.gameDate, payload.gameName, payload.venue].filter(Boolean).join(" / ") || "試合情報なし");
+  lines.push("");
+
+  lines.push("■ スコア");
+  (payload.rows || []).forEach((row) => {
+    const inningsText = (row.innings || []).map((score, index) => `${index + 1}:${score || "-"}`).join(" ");
+    const runs = (row.innings || []).reduce((sum, score) => sum + Number(score || 0), 0);
+    lines.push(`${row.name || teamLabels[row.team] || "チーム"}  ${inningsText}  計:${runs} H:${row.hits || "-"} E:${row.errors || "-"}`);
+  });
+  lines.push("");
+
+  lines.push("■ 打順");
+  ["away", "home"].forEach((team) => {
+    const lineup = payload.lineups?.[team] || [];
+    lines.push(`${teamLabels[team] || team}`);
+    const filled = lineup.filter((spot) => spot.player || spot.starter || spot.position || spot.memo);
+    if (!filled.length) {
+      lines.push("  なし");
+      return;
+    }
+    filled.forEach((spot) => {
+      const name = spot.player || spot.starter || "";
+      const pinch = spot.starter && spot.player && spot.starter !== spot.player ? " 代打" : "";
+      lines.push(`  ${spot.order}. ${name}${pinch} ${spot.position || ""}${spot.memo ? ` (${spot.memo})` : ""}`);
+    });
+  });
+  lines.push("");
+
+  lines.push("■ 打席履歴");
+  if ((payload.plateRecords || []).length) {
+    payload.plateRecords.forEach((record) => {
+      lines.push(`${teamLabels[record.team] || ""} ${record.battingOrder || "-"}番 ${record.batter || ""}: ${record.result || ""}${record.memo ? ` / ${record.memo}` : ""}`);
+    });
+  } else {
+    lines.push("なし");
+  }
+  lines.push("");
+
+  lines.push("■ 投球数");
+  const pitchSummary = (payload.pitchRecords || []).reduce((summary, pitch) => {
+    const pitcher = pitch.pitcher || "未入力";
+    summary[pitcher] ||= { total: 0, strike: 0, ball: 0, foul: 0 };
+    summary[pitcher].total += 1;
+    if (pitch.type in summary[pitcher]) summary[pitcher][pitch.type] += 1;
+    return summary;
+  }, {});
+  const pitchRows = Object.entries(pitchSummary).sort((a, b) => b[1].total - a[1].total || a[0].localeCompare(b[0], "ja"));
+  if (pitchRows.length) {
+    pitchRows.forEach(([pitcher, row]) => {
+      lines.push(`${pitcher}: ${row.total}球  S:${row.strike} B:${row.ball} F:${row.foul}`);
+    });
+  } else {
+    lines.push("なし");
+  }
+
+  if (payload.notes) {
+    lines.push("");
+    lines.push("■ メモ");
+    lines.push(payload.notes);
+  }
+
+  return lines.join("\n");
 }
 
 async function shareViewFile(html, filename) {
