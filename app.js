@@ -1259,13 +1259,37 @@ async function createViewLink() {
     const publicFile = await savePublicViewFile(JSON.stringify(buildStatePayload(), null, 2));
     await makeDriveFilePublic(publicFile.id);
     const url = `${location.origin}${location.pathname}?viewFile=${encodeURIComponent(publicFile.id)}`;
-    await copyText(url);
-    setDriveStatus("閲覧リンクをコピーしました");
-    alert("閲覧専用リンクをコピーしました。LINEなどに貼り付けて送れます。");
+    await shareViewUrl(url);
   } catch (error) {
     console.error(error);
     prompt("コピーできなかったため、このリンクをコピーしてください。", `${location.origin}${location.pathname}`);
   }
+}
+
+async function shareViewUrl(url) {
+  const shareData = {
+    title: "野球スコア閲覧リンク",
+    text: "野球スコアの閲覧専用リンクです。",
+    url,
+  };
+
+  if (navigator.share) {
+    try {
+      await navigator.share(shareData);
+      setDriveStatus("閲覧リンクを共有しました");
+      return;
+    } catch (error) {
+      if (error?.name === "AbortError") {
+        setDriveStatus("共有をキャンセルしました");
+        return;
+      }
+      console.warn(error);
+    }
+  }
+
+  await copyText(url);
+  setDriveStatus("閲覧リンクをコピーしました");
+  alert("閲覧専用リンクをコピーしました。LINEなどに貼り付けて送れます。");
 }
 
 async function copyText(text) {
