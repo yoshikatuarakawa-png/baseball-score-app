@@ -1257,18 +1257,124 @@ function enableViewOnlyMode() {
 async function createViewLink() {
   try {
     saveState();
-    setDriveStatus("閲覧リンク作成中...");
-    await requestGoogleAccessToken();
     const payloadText = JSON.stringify(buildStatePayload(), null, 2);
-    const publicFile = await savePublicViewFile(payloadText);
-    await makeDriveFilePublic(publicFile.id);
-    const token = await encodeShareToken(payloadText);
-    const url = `${location.origin}${location.pathname}?view=${encodeURIComponent(token)}&viewFile=${encodeURIComponent(publicFile.id)}`;
-    await shareViewUrl(url);
+    const html = buildViewOnlyHtml(payloadText);
+    const safeDate = gameDate.value || new Date().toISOString().slice(0, 10);
+    const filename = `baseball-score-view-${safeDate}.html`;
+    setDriveStatus("閲覧用ファイル作成中...");
+    await shareViewFile(html, filename);
   } catch (error) {
     console.error(error);
-    prompt("コピーできなかったため、このリンクをコピーしてください。", `${location.origin}${location.pathname}`);
+    alert("閲覧用ファイルを作成できませんでした。もう一度お試しください。");
   }
+}
+
+async function shareViewFile(html, filename) {
+  const file = new File([html], filename, { type: "text/html" });
+  if (navigator.canShare?.({ files: [file] })) {
+    try {
+      await navigator.share({
+        title: "野球スコア閲覧用ファイル",
+        text: "野球スコアの閲覧専用ファイルです。",
+        files: [file],
+      });
+      setDriveStatus("閲覧用ファイルを共有しました");
+      return;
+    } catch (error) {
+      if (error?.name === "AbortError") {
+        setDriveStatus("共有をキャンセルしました");
+        return;
+      }
+      console.warn(error);
+    }
+  }
+
+  downloadTextFile(html, filename, "text/html");
+  setDriveStatus("閲覧用ファイルを保存しました");
+  alert("閲覧用HTMLファイルを保存しました。このファイルをLINEやメールで送ってください。");
+}
+
+function downloadTextFile(content, filename, type) {
+  const url = URL.createObjectURL(new Blob([content], { type }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function buildViewOnlyHtml(payloadText) {
+  return `<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>野球スコア閲覧</title>
+  <style>
+    :root { color-scheme: light; --green: #166b4f; --line: #d9ded9; --bg: #f6f4ef; --ink: #1e2528; --muted: #667076; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: "Segoe UI", system-ui, "Hiragino Sans", "Yu Gothic", sans-serif; background: var(--bg); color: var(--ink); }
+    main { width: min(980px, calc(100% - 24px)); margin: 18px auto; background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 18px; }
+    h1 { margin: 0 0 4px; font-size: 1.7rem; }
+    h2 { margin: 24px 0 10px; font-size: 1.12rem; color: var(--green); }
+    .meta { color: var(--muted); font-weight: 700; }
+    table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 0.95rem; }
+    th, td { border-bottom: 1px solid var(--line); padding: 9px 7px; text-align: left; vertical-align: top; }
+    th { background: #eef5f1; color: #0c4e3a; }
+    .scroll { overflow-x: auto; }
+    .empty { color: var(--muted); padding: 10px 0; }
+    @media (max-width: 640px) { main { width: 100%; min-height: 100vh; margin: 0; border: 0; border-radius: 0; } table { font-size: 0.86rem; } }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>野球スコア閲覧</h1>
+    <div id="meta" class="meta"></div>
+    <section><h2>スコア</h2><div class="scroll"><table id="scoreTable"></table></div></section>
+    <section><h2>打順</h2><div class="scroll"><table id="lineupTable"></table></div></section>
+    <section><h2>打席履歴</h2><div class="scroll"><table id="plateTable"></table></div></section>
+    <section><h2>投球数</h2><div class="scroll"><table id="pitchTable"></table></div></section>
+    <section><h2>メモ</h2><div id="notes" class="empty"></div></section>
+  </main>
+  <script type="application/json" id="payload">${escapeJsonForScript(payloadText)}</script>
+  <script>
+    const payload = JSON.parse(document.getElementById("payload").textContent);
+    const teamLabels = { away: "先攻", home: "後攻" };
+    const pitchLabels = { strike: "ストライク", ball: "ボール", foul: "ファール" };
+    const esc = (value) => String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
+    const td = (value) => "<td>" + esc(value) + "</td>";
+    document.getElementById("meta").textContent = [payload.gameDate, payload.gameName, payload.venue].filter(Boolean).join(" / ") || "閲覧専用";
+    document.getElementById("notes").textContent = payload.notes || "メモはありません。";
+
+    const scoreHeaders = ["チーム", "1", "2", "3", "4", "5", "6", "7", "8", "9", "H", "E"];
+    document.getElementById("scoreTable").innerHTML = "<thead><tr>" + scoreHeaders.map((item) => "<th>" + item + "</th>").join("") + "</tr></thead><tbody>" +
+      (payload.rows || []).map((row) => "<tr>" + td(row.name || teamLabels[row.team] || "") + (row.innings || []).map(td).join("") + td(row.hits) + td(row.errors) + "</tr>").join("") + "</tbody>";
+
+    const lineupRows = ["away", "home"].flatMap((team) => (payload.lineups?.[team] || []).map((spot) => ({ team, ...spot })));
+    document.getElementById("lineupTable").innerHTML = "<thead><tr><th>チーム</th><th>打順</th><th>選手</th><th>守備</th><th>メモ</th></tr></thead><tbody>" +
+      (lineupRows.length ? lineupRows.map((spot) => "<tr>" + td(teamLabels[spot.team]) + td(spot.order) + td(spot.player || spot.starter) + td(spot.position) + td(spot.memo) + "</tr>").join("") : "<tr><td colspan='5'>打順はありません。</td></tr>") + "</tbody>";
+
+    document.getElementById("plateTable").innerHTML = "<thead><tr><th>日付</th><th>チーム</th><th>打順</th><th>選手</th><th>結果</th><th>メモ</th></tr></thead><tbody>" +
+      ((payload.plateRecords || []).length ? payload.plateRecords.map((record) => "<tr>" + td(record.gameDate) + td(teamLabels[record.team]) + td(record.battingOrder) + td(record.batter) + td(record.result) + td(record.memo) + "</tr>").join("") : "<tr><td colspan='6'>打席履歴はありません。</td></tr>") + "</tbody>";
+
+    const pitchSummary = (payload.pitchRecords || []).reduce((summary, pitch) => {
+      summary[pitch.pitcher] ||= { total: 0, strike: 0, ball: 0, foul: 0 };
+      summary[pitch.pitcher].total += 1;
+      summary[pitch.pitcher][pitch.type] += 1;
+      return summary;
+    }, {});
+    const pitchRows = Object.entries(pitchSummary).sort((a, b) => b[1].total - a[1].total);
+    document.getElementById("pitchTable").innerHTML = "<thead><tr><th>投手</th><th>合計</th><th>ストライク</th><th>ボール</th><th>ファール</th></tr></thead><tbody>" +
+      (pitchRows.length ? pitchRows.map(([name, row]) => "<tr>" + td(name) + td(row.total) + td(row.strike) + td(row.ball) + td(row.foul) + "</tr>").join("") : "<tr><td colspan='5'>投球記録はありません。</td></tr>") + "</tbody>";
+  </script>
+</body>
+</html>`;
+}
+
+function escapeJsonForScript(text) {
+  return text.replaceAll("<", "\\u003c");
 }
 
 async function shareViewUrl(url) {
