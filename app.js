@@ -55,6 +55,7 @@ const exportButton = document.querySelector("#exportButton");
 const driveSaveButton = document.querySelector("#driveSaveButton");
 const driveLoadButton = document.querySelector("#driveLoadButton");
 const shareViewButton = document.querySelector("#shareViewButton");
+const rankingImageButton = document.querySelector("#rankingImageButton");
 const driveStatus = document.querySelector("#driveStatus");
 const saveGameButton = document.querySelector("#saveGameButton");
 const newGameButton = document.querySelector("#newGameButton");
@@ -1379,8 +1380,8 @@ function buildPlayerRankingRows() {
     .filter((item) => item.row.pa > 0);
 }
 
-function appendPlayerRankingText(lines, rows) {
-  const rankingItems = [
+function playerRankingItems() {
+  return [
     {
       label: "打率",
       value: (item) => item.avg,
@@ -1418,6 +1419,10 @@ function appendPlayerRankingText(lines, rows) {
     },
     { label: "盗塁", value: (item) => item.row.steal, format: (item) => `${item.row.steal}個` },
   ];
+}
+
+function appendPlayerRankingText(lines, rows) {
+  const rankingItems = playerRankingItems();
 
   rankingItems.forEach((item, index) => {
     lines.push(`【${item.label}】`);
@@ -1454,6 +1459,191 @@ function rankPlayerRows(rows, item) {
     previousRank = rank;
     return { row, rank };
   });
+}
+
+async function shareRankingImage() {
+  try {
+    saveState();
+    setDriveStatus("ランキング表作成中...");
+    const canvas = buildRankingImageCanvas();
+    const blob = await canvasToBlob(canvas);
+    const safeDate = gameDate.value || new Date().toISOString().slice(0, 10);
+    const filename = `baseball-ranking-${safeDate}.png`;
+    const file = new File([blob], filename, { type: "image/png" });
+
+    if (navigator.canShare?.({ files: [file] })) {
+      try {
+        await navigator.share({
+          title: "通算成績ランキング表",
+          text: "通算成績ランキング表です。",
+          files: [file],
+        });
+        setDriveStatus("ランキング表を共有しました");
+        return;
+      } catch (error) {
+        if (error?.name === "AbortError") {
+          setDriveStatus("共有をキャンセルしました");
+          return;
+        }
+        console.warn(error);
+      }
+    }
+
+    downloadBlob(blob, filename);
+    setDriveStatus("ランキング表を保存しました");
+    alert("ランキング表の画像を保存しました。この画像をLINEなどで送ってください。");
+  } catch (error) {
+    console.error(error);
+    alert("ランキング表を作成できませんでした。もう一度お試しください。");
+  }
+}
+
+function buildRankingImageCanvas() {
+  const rows = buildRankingTableRows();
+  const width = 1600;
+  const margin = 44;
+  const titleHeight = 104;
+  const headerHeight = 58;
+  const rowHeight = 96;
+  const footerHeight = 42;
+  const height = margin + titleHeight + headerHeight + rows.length * rowHeight + footerHeight + margin;
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  const contentWidth = width - margin * 2;
+  const itemWidth = 210;
+  const rankWidth = (contentWidth - itemWidth) / 5;
+  const tableTop = margin + titleHeight;
+
+  ctx.fillStyle = "#f6f4ef";
+  ctx.fillRect(0, 0, width, height);
+  ctx.fillStyle = "#ffffff";
+  roundRect(ctx, margin / 2, margin / 2, width - margin, height - margin, 18);
+  ctx.fill();
+
+  ctx.fillStyle = "#0c4e3a";
+  ctx.font = '700 46px "Yu Gothic", "Segoe UI", sans-serif';
+  ctx.fillText("通算成績ランキング表", margin, margin + 46);
+  ctx.fillStyle = "#667076";
+  ctx.font = '700 24px "Yu Gothic", "Segoe UI", sans-serif';
+  const subtitle = [gameDate.value, gameName.value.trim(), venue.value.trim()].filter(Boolean).join(" / ") || "基データ・保存済み試合・現在の試合を合算";
+  ctx.fillText(subtitle, margin, margin + 84);
+
+  drawTableCell(ctx, "項目", margin, tableTop, itemWidth, headerHeight, { header: true });
+  for (let rank = 1; rank <= 5; rank += 1) {
+    drawTableCell(ctx, `${rank}位`, margin + itemWidth + rankWidth * (rank - 1), tableTop, rankWidth, headerHeight, { header: true });
+  }
+
+  rows.forEach((row, rowIndex) => {
+    const y = tableTop + headerHeight + rowHeight * rowIndex;
+    const fill = rowIndex % 2 === 0 ? "#ffffff" : "#f9faf8";
+    drawTableCell(ctx, row.label, margin, y, itemWidth, rowHeight, { fill, strong: true });
+    for (let index = 0; index < 5; index += 1) {
+      drawRankingEntryCell(ctx, row.entries[index], margin + itemWidth + rankWidth * index, y, rankWidth, rowHeight, fill);
+    }
+  });
+
+  ctx.fillStyle = "#667076";
+  ctx.font = '700 20px "Yu Gothic", "Segoe UI", sans-serif';
+  ctx.fillText("※同じ成績は同順位。各項目上位5名まで表示。", margin, height - margin - 6);
+  return canvas;
+}
+
+function buildRankingTableRows() {
+  const rows = buildPlayerRankingRows();
+  return playerRankingItems().map((item) => ({
+    label: item.label,
+    entries: rankPlayerRows(rows, item).map(({ row, rank }) => ({
+      rank,
+      name: row.name,
+      value: item.format(row),
+    })),
+  }));
+}
+
+function drawTableCell(ctx, text, x, y, width, height, options = {}) {
+  ctx.fillStyle = options.header ? "#166b4f" : options.fill || "#ffffff";
+  ctx.fillRect(x, y, width, height);
+  ctx.strokeStyle = "#d9ded9";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(x, y, width, height);
+  ctx.fillStyle = options.header ? "#ffffff" : "#1e2528";
+  ctx.font = `${options.strong || options.header ? "700" : "600"} ${options.header ? 24 : 23}px "Yu Gothic", "Segoe UI", sans-serif`;
+  drawWrappedText(ctx, text || "-", x + 14, y + 32, width - 28, 27, 2);
+}
+
+function drawRankingEntryCell(ctx, entry, x, y, width, height, fill) {
+  ctx.fillStyle = fill;
+  ctx.fillRect(x, y, width, height);
+  ctx.strokeStyle = "#d9ded9";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(x, y, width, height);
+  if (!entry) {
+    ctx.fillStyle = "#9aa3a7";
+    ctx.font = '600 22px "Yu Gothic", "Segoe UI", sans-serif';
+    ctx.fillText("-", x + 16, y + 54);
+    return;
+  }
+  ctx.fillStyle = "#1e2528";
+  ctx.font = '700 22px "Yu Gothic", "Segoe UI", sans-serif';
+  drawWrappedText(ctx, `${entry.rank}位 ${entry.name}`, x + 14, y + 30, width - 28, 24, 2);
+  ctx.fillStyle = "#0c4e3a";
+  ctx.font = '700 21px "Yu Gothic", "Segoe UI", sans-serif';
+  ctx.fillText(entry.value, x + 14, y + 78);
+}
+
+function drawWrappedText(ctx, text, x, y, maxWidth, lineHeight, maxLines) {
+  const wrapped = wrapCanvasText(ctx, text, maxWidth);
+  const lines = wrapped.slice(0, maxLines);
+  lines.forEach((line, index) => {
+    const suffix = index === maxLines - 1 && wrapped.length > maxLines ? "..." : "";
+    ctx.fillText(`${line}${suffix}`, x, y + lineHeight * index);
+  });
+}
+
+function wrapCanvasText(ctx, text, maxWidth) {
+  const chars = [...String(text || "")];
+  const lines = [];
+  let line = "";
+  chars.forEach((char) => {
+    const test = `${line}${char}`;
+    if (line && ctx.measureText(test).width > maxWidth) {
+      lines.push(line);
+      line = char;
+    } else {
+      line = test;
+    }
+  });
+  if (line) lines.push(line);
+  return lines.length ? lines : [""];
+}
+
+function roundRect(ctx, x, y, width, height, radius) {
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.arcTo(x + width, y, x + width, y + height, radius);
+  ctx.arcTo(x + width, y + height, x, y + height, radius);
+  ctx.arcTo(x, y + height, x, y, radius);
+  ctx.arcTo(x, y, x + width, y, radius);
+  ctx.closePath();
+}
+
+function canvasToBlob(canvas) {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error("Canvas export failed"))), "image/png");
+  });
+}
+
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 async function shareViewFile(html, filename) {
@@ -2070,6 +2260,7 @@ exportButton.addEventListener("click", exportCsv);
 driveSaveButton?.addEventListener("click", saveToDrive);
 driveLoadButton?.addEventListener("click", loadFromDrive);
 shareViewButton?.addEventListener("click", createViewLink);
+rankingImageButton?.addEventListener("click", shareRankingImage);
 saveGameButton.addEventListener("click", saveCurrentGame);
 newGameButton.addEventListener("click", resetCurrentGame);
 plateForm.addEventListener("submit", addPlateRecord);
