@@ -1573,6 +1573,32 @@ function createEmptyScoreRows() {
   ];
 }
 
+function formatPdfDate(dateText) {
+  if (!dateText) return "";
+  const date = new Date(`${dateText}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return dateText;
+  return `${date.getMonth() + 1}月${date.getDate()}日`;
+}
+
+function scoreMatchupLabel(rows) {
+  const names = scoreRowsWithRuns(rows)
+    .map((row) => row.name?.trim())
+    .filter((name) => name && name !== "ビジター" && name !== "ホーム");
+  if (names.length >= 2) return `${names[0]} 対 ${names[1]}`;
+  if (names.length === 1) return `${names[0]}戦`;
+  return "";
+}
+
+function gamePdfTitle(data) {
+  const date = formatPdfDate(data.date);
+  const opponent = data.name || scoreMatchupLabel(data.scoreRows || []);
+  return [date, opponent].filter(Boolean).join(" ") || "試合結果";
+}
+
+function gamePdfSubtitle(data) {
+  return [data.venue, scoreLabel(scoreRowsWithRuns(data.scoreRows || []))].filter(Boolean).join(" / ") || "試合情報なし";
+}
+
 function buildGameResultCanvas(data = currentGamePdfData()) {
   const width = 1240;
   const height = 1754;
@@ -1593,11 +1619,11 @@ function buildGameResultCanvas(data = currentGamePdfData()) {
   ctx.fill();
 
   ctx.fillStyle = "#0c4e3a";
-  ctx.font = '700 44px "Yu Gothic", "Segoe UI", sans-serif';
-  ctx.fillText("試合結果", margin, margin + 44);
+  ctx.font = '700 42px "Yu Gothic", "Segoe UI", sans-serif';
+  drawWrappedText(ctx, gamePdfTitle(data), margin, margin + 44, contentWidth, 46, 1);
   ctx.fillStyle = "#667076";
   ctx.font = '700 22px "Yu Gothic", "Segoe UI", sans-serif';
-  drawWrappedText(ctx, [data.date, data.name, data.venue].filter(Boolean).join(" / ") || "試合情報なし", margin, margin + 78, contentWidth, 26, 1);
+  drawWrappedText(ctx, gamePdfSubtitle(data), margin, margin + 78, contentWidth, 26, 1);
 
   drawScoreboardPdf(ctx, scoreRows, margin, 140, contentWidth);
   drawGameInfoBoxes(ctx, scoreText, pitches.total, (data.records || []).length, data.currentOuts || 0, margin, 298, contentWidth);
@@ -1879,10 +1905,10 @@ function buildRankingImageCanvas() {
 
   ctx.fillStyle = "#0c4e3a";
   ctx.font = '700 44px "Yu Gothic", "Segoe UI", sans-serif';
-  ctx.fillText("通算成績ランキング表", margin, margin + 44);
+  ctx.fillText("通算成績", margin, margin + 44);
   ctx.fillStyle = "#667076";
   ctx.font = '700 22px "Yu Gothic", "Segoe UI", sans-serif';
-  const subtitle = [gameDate.value, gameName.value.trim(), venue.value.trim()].filter(Boolean).join(" / ") || "基データ・保存済み試合・現在の試合を合算";
+  const subtitle = `ランキング表 / ${formatPdfDate(new Date().toISOString().slice(0, 10))}作成`;
   drawWrappedText(ctx, subtitle, margin, margin + 78, contentWidth, 26, 1);
 
   drawTableCell(ctx, "項目", margin, tableTop, itemWidth, headerHeight, { header: true });
