@@ -55,6 +55,7 @@ const exportButton = document.querySelector("#exportButton");
 const driveSaveButton = document.querySelector("#driveSaveButton");
 const driveLoadButton = document.querySelector("#driveLoadButton");
 const shareViewButton = document.querySelector("#shareViewButton");
+const gamePdfButton = document.querySelector("#gamePdfButton");
 const rankingImageButton = document.querySelector("#rankingImageButton");
 const driveStatus = document.querySelector("#driveStatus");
 const saveGameButton = document.querySelector("#saveGameButton");
@@ -1461,6 +1462,286 @@ function rankPlayerRows(rows, item) {
   });
 }
 
+async function shareGamePdf() {
+  try {
+    saveState();
+    setDriveStatus("試合PDF作成中...");
+    const canvas = buildGameResultCanvas();
+    const blob = await canvasToPdfBlob(canvas);
+    const safeDate = gameDate.value || new Date().toISOString().slice(0, 10);
+    const filename = `baseball-game-${safeDate}.pdf`;
+    const file = new File([blob], filename, { type: "application/pdf" });
+
+    if (navigator.canShare?.({ files: [file] })) {
+      try {
+        await navigator.share({
+          title: "試合結果PDF",
+          text: "試合結果を1枚にまとめたPDFです。",
+          files: [file],
+        });
+        setDriveStatus("試合PDFを共有しました");
+        return;
+      } catch (error) {
+        if (error?.name === "AbortError") {
+          setDriveStatus("共有をキャンセルしました");
+          return;
+        }
+        console.warn(error);
+      }
+    }
+
+    downloadBlob(blob, filename);
+    setDriveStatus("試合PDFを保存しました");
+    alert("試合PDFを保存しました。このPDFをLINEなどで送ってください。");
+  } catch (error) {
+    console.error(error);
+    alert("試合PDFを作成できませんでした。もう一度お試しください。");
+  }
+}
+
+function buildGameResultCanvas() {
+  const width = 1240;
+  const height = 1754;
+  const margin = 36;
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  const contentWidth = width - margin * 2;
+  const scoreRows = currentScoreSnapshot();
+  const pitches = pitchTotals();
+  const scoreText = scoreLabel(scoreRows) || "スコア未入力";
+
+  ctx.fillStyle = "#f6f4ef";
+  ctx.fillRect(0, 0, width, height);
+  ctx.fillStyle = "#ffffff";
+  roundRect(ctx, margin / 2, margin / 2, width - margin, height - margin, 18);
+  ctx.fill();
+
+  ctx.fillStyle = "#0c4e3a";
+  ctx.font = '700 44px "Yu Gothic", "Segoe UI", sans-serif';
+  ctx.fillText("試合結果", margin, margin + 44);
+  ctx.fillStyle = "#667076";
+  ctx.font = '700 22px "Yu Gothic", "Segoe UI", sans-serif';
+  drawWrappedText(ctx, [gameDate.value, gameName.value.trim(), venue.value.trim()].filter(Boolean).join(" / ") || "試合情報なし", margin, margin + 78, contentWidth, 26, 1);
+
+  drawScoreboardPdf(ctx, scoreRows, margin, 140, contentWidth);
+  drawGameInfoBoxes(ctx, scoreText, pitches.total, plateRecords.length, currentOuts, margin, 298, contentWidth);
+  drawLineupPdf(ctx, margin, 398, contentWidth, 320);
+  drawPlateRecordsPdf(ctx, margin, 748, 738, 760);
+  drawPitchSummaryPdf(ctx, margin + 762, 748, contentWidth - 762, 282);
+  drawNotesPdf(ctx, margin + 762, 1058, contentWidth - 762, 230);
+  drawCurrentCountPdf(ctx, margin + 762, 1316, contentWidth - 762, 192);
+
+  ctx.fillStyle = "#667076";
+  ctx.font = '700 19px "Yu Gothic", "Segoe UI", sans-serif';
+  ctx.fillText("※このPDFは現在入力中の試合内容を1枚にまとめています。", margin, height - margin - 8);
+  return canvas;
+}
+
+function drawScoreboardPdf(ctx, rows, x, y, width) {
+  const teamWidth = 226;
+  const statWidth = 70;
+  const inningWidth = (width - teamWidth - statWidth * 3) / 9;
+  const headerHeight = 42;
+  const rowHeight = 48;
+  const headers = ["チーム", "1", "2", "3", "4", "5", "6", "7", "8", "9", "R", "H", "E"];
+  const widths = [teamWidth, ...Array(9).fill(inningWidth), statWidth, statWidth, statWidth];
+  let left = x;
+  headers.forEach((header, index) => {
+    drawPdfCell(ctx, header, left, y, widths[index], headerHeight, { header: true, align: "center" });
+    left += widths[index];
+  });
+  rows.forEach((row, rowIndex) => {
+    const values = [row.name || teamLabel(row.team) || "チーム", ...(row.innings || []).slice(0, 9), row.runs, row.hits || "-", row.errors || "-"];
+    let cellX = x;
+    values.forEach((value, index) => {
+      drawPdfCell(ctx, value, cellX, y + headerHeight + rowHeight * rowIndex, widths[index], rowHeight, {
+        fill: rowIndex % 2 === 0 ? "#ffffff" : "#f9faf8",
+        align: index === 0 ? "left" : "center",
+        strong: index === 10,
+      });
+      cellX += widths[index];
+    });
+  });
+}
+
+function drawGameInfoBoxes(ctx, scoreText, pitchTotal, plateTotal, outs, x, y, width) {
+  const gap = 12;
+  const boxWidth = (width - gap * 3) / 4;
+  const items = [
+    ["スコア", scoreText],
+    ["打席数", `${plateTotal}件`],
+    ["投球数", `${pitchTotal}球`],
+    ["アウト", `${outs}アウト`],
+  ];
+  items.forEach(([label, value], index) => {
+    const boxX = x + (boxWidth + gap) * index;
+    ctx.fillStyle = "#eef5f1";
+    roundRect(ctx, boxX, y, boxWidth, 72, 10);
+    ctx.fill();
+    ctx.strokeStyle = "#d9ded9";
+    ctx.strokeRect(boxX, y, boxWidth, 72);
+    ctx.fillStyle = "#667076";
+    ctx.font = '700 18px "Yu Gothic", "Segoe UI", sans-serif';
+    ctx.fillText(label, boxX + 14, y + 24);
+    ctx.fillStyle = "#0c4e3a";
+    ctx.font = '700 25px "Yu Gothic", "Segoe UI", sans-serif';
+    drawWrappedText(ctx, value, boxX + 14, y + 56, boxWidth - 28, 25, 1);
+  });
+}
+
+function drawLineupPdf(ctx, x, y, width, height) {
+  const gap = 16;
+  const columnWidth = (width - gap) / 2;
+  drawLineupTeamPdf(ctx, "先攻", lineups.away || [], x, y, columnWidth, height);
+  drawLineupTeamPdf(ctx, "後攻", lineups.home || [], x + columnWidth + gap, y, columnWidth, height);
+}
+
+function drawLineupTeamPdf(ctx, title, lineup, x, y, width, height) {
+  drawPdfPanel(ctx, title, x, y, width, height);
+  const rowHeight = 28;
+  const top = y + 48;
+  const visible = lineup.slice(0, 9);
+  visible.forEach((spot, index) => {
+    const rowY = top + rowHeight * index;
+    const name = spot.player || spot.starter || "-";
+    const pinch = spot.starter && spot.player && spot.starter !== spot.player ? " 代打" : "";
+    const text = `${spot.order}. ${name}${pinch}  ${spot.position || ""}`;
+    drawPdfTextLine(ctx, text, x + 16, rowY + 20, width - 32, 20, index % 2 === 0 ? "#ffffff" : "#f9faf8");
+  });
+}
+
+function drawPlateRecordsPdf(ctx, x, y, width, height) {
+  drawPdfPanel(ctx, "打席結果", x, y, width, height);
+  const records = [...plateRecords].reverse();
+  const rowHeight = 34;
+  const headerY = y + 46;
+  const columns = [58, 70, 150, 180, width - 58 - 70 - 150 - 180 - 28];
+  const headers = ["No", "打順", "打者", "結果", "メモ"];
+  let left = x + 14;
+  headers.forEach((header, index) => {
+    drawPdfCell(ctx, header, left, headerY, columns[index], 30, { header: true, align: "center", fontSize: 17 });
+    left += columns[index];
+  });
+  const maxRows = Math.min(records.length, 18);
+  if (!records.length) drawEmptyPdfText(ctx, "打席記録はありません", x + 18, headerY + 66, width - 36);
+  records.slice(0, maxRows).forEach((record, index) => {
+    const values = [index + 1, record.battingOrder || "-", record.batter || "", record.result || "", record.memo || ""];
+    let cellX = x + 14;
+    values.forEach((value, columnIndex) => {
+      drawPdfCell(ctx, value, cellX, headerY + 30 + rowHeight * index, columns[columnIndex], rowHeight, {
+        fill: index % 2 === 0 ? "#ffffff" : "#f9faf8",
+        align: columnIndex < 2 ? "center" : "left",
+        fontSize: 16,
+      });
+      cellX += columns[columnIndex];
+    });
+  });
+  if (records.length > maxRows) {
+    ctx.fillStyle = "#667076";
+    ctx.font = '700 17px "Yu Gothic", "Segoe UI", sans-serif';
+    ctx.fillText(`ほか${records.length - maxRows}件`, x + 18, y + height - 18);
+  }
+}
+
+function drawPitchSummaryPdf(ctx, x, y, width, height) {
+  drawPdfPanel(ctx, "投球数", x, y, width, height);
+  const rows = Object.entries(summarizePitches()).sort((a, b) => b[1].total - a[1].total || a[0].localeCompare(b[0], "ja"));
+  const rowHeight = 34;
+  const top = y + 52;
+  const headers = ["投手", "球", "S", "B", "F"];
+  const columns = [width - 214, 52, 52, 52, 52];
+  let left = x + 14;
+  headers.forEach((header, index) => {
+    drawPdfCell(ctx, header, left, top, columns[index], 30, { header: true, align: "center", fontSize: 16 });
+    left += columns[index];
+  });
+  rows.slice(0, 5).forEach(([pitcher, row], index) => {
+    const values = [pitcher, row.total, row.strike, row.ball, row.foul];
+    let cellX = x + 14;
+    values.forEach((value, columnIndex) => {
+      drawPdfCell(ctx, value, cellX, top + 30 + rowHeight * index, columns[columnIndex], rowHeight, {
+        fill: index % 2 === 0 ? "#ffffff" : "#f9faf8",
+        align: columnIndex === 0 ? "left" : "center",
+        fontSize: 16,
+      });
+      cellX += columns[columnIndex];
+    });
+  });
+  if (!rows.length) drawEmptyPdfText(ctx, "投球記録はありません", x + 18, top + 62, width - 36);
+}
+
+function drawNotesPdf(ctx, x, y, width, height) {
+  drawPdfPanel(ctx, "メモ", x, y, width, height);
+  const text = notes.value.trim() || "メモはありません。";
+  ctx.fillStyle = "#1e2528";
+  ctx.font = '600 18px "Yu Gothic", "Segoe UI", sans-serif';
+  drawWrappedText(ctx, text, x + 18, y + 58, width - 36, 26, 6);
+}
+
+function drawCurrentCountPdf(ctx, x, y, width, height) {
+  drawPdfPanel(ctx, "現在のカウント", x, y, width, height);
+  const pitcher = normalizePitcherName(pitcherName.value) || "未入力";
+  const rows = [
+    `投手: ${pitcher}`,
+    `B ${currentCount.balls} / S ${currentCount.strikes} / F ${currentCount.fouls}`,
+    `累計 ${currentCount.total}球 / ${currentOuts}アウト`,
+  ];
+  ctx.fillStyle = "#1e2528";
+  ctx.font = '700 20px "Yu Gothic", "Segoe UI", sans-serif';
+  rows.forEach((row, index) => ctx.fillText(row, x + 18, y + 62 + index * 34));
+}
+
+function drawPdfPanel(ctx, title, x, y, width, height) {
+  ctx.fillStyle = "#ffffff";
+  roundRect(ctx, x, y, width, height, 10);
+  ctx.fill();
+  ctx.strokeStyle = "#d9ded9";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(x, y, width, height);
+  ctx.fillStyle = "#0c4e3a";
+  ctx.font = '700 24px "Yu Gothic", "Segoe UI", sans-serif';
+  ctx.fillText(title, x + 16, y + 32);
+  ctx.strokeStyle = "#d9ded9";
+  ctx.beginPath();
+  ctx.moveTo(x, y + 42);
+  ctx.lineTo(x + width, y + 42);
+  ctx.stroke();
+}
+
+function drawPdfCell(ctx, text, x, y, width, height, options = {}) {
+  ctx.fillStyle = options.header ? "#166b4f" : options.fill || "#ffffff";
+  ctx.fillRect(x, y, width, height);
+  ctx.strokeStyle = "#d9ded9";
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(x, y, width, height);
+  ctx.fillStyle = options.header ? "#ffffff" : "#1e2528";
+  ctx.font = `${options.strong || options.header ? "700" : "600"} ${options.fontSize || 18}px "Yu Gothic", "Segoe UI", sans-serif`;
+  const value = String(text ?? "");
+  if (options.align === "center") {
+    ctx.textAlign = "center";
+    ctx.fillText(value || "-", x + width / 2, y + height / 2 + (options.fontSize || 18) / 3);
+    ctx.textAlign = "left";
+    return;
+  }
+  drawWrappedText(ctx, value || "-", x + 8, y + Math.min(height - 8, 23), width - 16, options.fontSize || 18, 1);
+}
+
+function drawPdfTextLine(ctx, text, x, y, width, lineHeight, fill) {
+  ctx.fillStyle = fill;
+  ctx.fillRect(x - 8, y - lineHeight + 4, width + 16, lineHeight + 8);
+  ctx.fillStyle = "#1e2528";
+  ctx.font = '700 17px "Yu Gothic", "Segoe UI", sans-serif';
+  drawWrappedText(ctx, text, x, y, width, lineHeight, 1);
+}
+
+function drawEmptyPdfText(ctx, text, x, y, width) {
+  ctx.fillStyle = "#667076";
+  ctx.font = '700 18px "Yu Gothic", "Segoe UI", sans-serif';
+  drawWrappedText(ctx, text, x, y, width, 24, 2);
+}
+
 async function shareRankingImage() {
   try {
     saveState();
@@ -2332,6 +2613,7 @@ exportButton.addEventListener("click", exportCsv);
 driveSaveButton?.addEventListener("click", saveToDrive);
 driveLoadButton?.addEventListener("click", loadFromDrive);
 shareViewButton?.addEventListener("click", createViewLink);
+gamePdfButton?.addEventListener("click", shareGamePdf);
 rankingImageButton?.addEventListener("click", shareRankingImage);
 saveGameButton.addEventListener("click", saveCurrentGame);
 newGameButton.addEventListener("click", resetCurrentGame);
