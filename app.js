@@ -1464,21 +1464,21 @@ function rankPlayerRows(rows, item) {
 async function shareRankingImage() {
   try {
     saveState();
-    setDriveStatus("ランキング表作成中...");
+    setDriveStatus("ランキングPDF作成中...");
     const canvas = buildRankingImageCanvas();
-    const blob = await canvasToBlob(canvas);
+    const blob = await canvasToPdfBlob(canvas);
     const safeDate = gameDate.value || new Date().toISOString().slice(0, 10);
-    const filename = `baseball-ranking-${safeDate}.png`;
-    const file = new File([blob], filename, { type: "image/png" });
+    const filename = `baseball-ranking-${safeDate}.pdf`;
+    const file = new File([blob], filename, { type: "application/pdf" });
 
     if (navigator.canShare?.({ files: [file] })) {
       try {
         await navigator.share({
-          title: "通算成績ランキング表",
+          title: "通算成績ランキングPDF",
           text: "通算成績ランキング表です。",
           files: [file],
         });
-        setDriveStatus("ランキング表を共有しました");
+        setDriveStatus("ランキングPDFを共有しました");
         return;
       } catch (error) {
         if (error?.name === "AbortError") {
@@ -1490,23 +1490,23 @@ async function shareRankingImage() {
     }
 
     downloadBlob(blob, filename);
-    setDriveStatus("ランキング表を保存しました");
-    alert("ランキング表の画像を保存しました。この画像をLINEなどで送ってください。");
+    setDriveStatus("ランキングPDFを保存しました");
+    alert("ランキングPDFを保存しました。このPDFをLINEなどで送ってください。");
   } catch (error) {
     console.error(error);
-    alert("ランキング表を作成できませんでした。もう一度お試しください。");
+    alert("ランキングPDFを作成できませんでした。もう一度お試しください。");
   }
 }
 
 function buildRankingImageCanvas() {
   const rows = buildRankingTableRows();
-  const width = 1600;
-  const margin = 44;
-  const titleHeight = 104;
-  const headerHeight = 58;
-  const rowHeight = 96;
-  const footerHeight = 42;
-  const height = margin + titleHeight + headerHeight + rows.length * rowHeight + footerHeight + margin;
+  const width = 1240;
+  const height = 1754;
+  const margin = 36;
+  const titleHeight = 96;
+  const headerHeight = 52;
+  const footerHeight = 38;
+  const rowHeight = (height - margin - titleHeight - headerHeight - footerHeight - margin) / rows.length;
   const canvas = document.createElement("canvas");
   canvas.width = width;
   canvas.height = height;
@@ -1523,12 +1523,12 @@ function buildRankingImageCanvas() {
   ctx.fill();
 
   ctx.fillStyle = "#0c4e3a";
-  ctx.font = '700 46px "Yu Gothic", "Segoe UI", sans-serif';
-  ctx.fillText("通算成績ランキング表", margin, margin + 46);
+  ctx.font = '700 44px "Yu Gothic", "Segoe UI", sans-serif';
+  ctx.fillText("通算成績ランキング表", margin, margin + 44);
   ctx.fillStyle = "#667076";
-  ctx.font = '700 24px "Yu Gothic", "Segoe UI", sans-serif';
+  ctx.font = '700 22px "Yu Gothic", "Segoe UI", sans-serif';
   const subtitle = [gameDate.value, gameName.value.trim(), venue.value.trim()].filter(Boolean).join(" / ") || "基データ・保存済み試合・現在の試合を合算";
-  ctx.fillText(subtitle, margin, margin + 84);
+  drawWrappedText(ctx, subtitle, margin, margin + 78, contentWidth, 26, 1);
 
   drawTableCell(ctx, "項目", margin, tableTop, itemWidth, headerHeight, { header: true });
   for (let rank = 1; rank <= 5; rank += 1) {
@@ -1545,8 +1545,8 @@ function buildRankingImageCanvas() {
   });
 
   ctx.fillStyle = "#667076";
-  ctx.font = '700 20px "Yu Gothic", "Segoe UI", sans-serif';
-  ctx.fillText("※同じ成績は同順位。各項目上位5名まで表示。", margin, height - margin - 6);
+  ctx.font = '700 19px "Yu Gothic", "Segoe UI", sans-serif';
+  ctx.fillText("※同じ成績は同順位。各項目上位5名まで表示。", margin, height - margin - 8);
   return canvas;
 }
 
@@ -1633,6 +1633,78 @@ function canvasToBlob(canvas) {
   return new Promise((resolve, reject) => {
     canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error("Canvas export failed"))), "image/png");
   });
+}
+
+function canvasToPdfBlob(canvas) {
+  const pageWidth = 595.28;
+  const pageHeight = 841.89;
+  const pageMargin = 18;
+  const imageBytes = base64ToBytes(canvas.toDataURL("image/jpeg", 0.92).split(",")[1]);
+  const imageRatio = canvas.width / canvas.height;
+  const maxWidth = pageWidth - pageMargin * 2;
+  const maxHeight = pageHeight - pageMargin * 2;
+  let drawWidth = maxWidth;
+  let drawHeight = drawWidth / imageRatio;
+  if (drawHeight > maxHeight) {
+    drawHeight = maxHeight;
+    drawWidth = drawHeight * imageRatio;
+  }
+  const x = (pageWidth - drawWidth) / 2;
+  const y = (pageHeight - drawHeight) / 2;
+  const contents = `q\n${drawWidth.toFixed(2)} 0 0 ${drawHeight.toFixed(2)} ${x.toFixed(2)} ${y.toFixed(2)} cm\n/Im0 Do\nQ\n`;
+  const chunks = [];
+  const offsets = [0];
+  let offset = 0;
+  const encoder = new TextEncoder();
+  const add = (chunk) => {
+    const bytes = typeof chunk === "string" ? encoder.encode(chunk) : chunk;
+    chunks.push(bytes);
+    offset += bytes.length;
+  };
+  const addObject = (parts) => {
+    offsets.push(offset);
+    parts.forEach(add);
+  };
+
+  add("%PDF-1.4\n");
+  addObject(["1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"]);
+  addObject(["2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"]);
+  addObject([
+    `3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Resources << /XObject << /Im0 4 0 R >> >> /Contents 5 0 R >>\nendobj\n`,
+  ]);
+  addObject([
+    `4 0 obj\n<< /Type /XObject /Subtype /Image /Width ${canvas.width} /Height ${canvas.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${imageBytes.length} >>\nstream\n`,
+    imageBytes,
+    "\nendstream\nendobj\n",
+  ]);
+  addObject([`5 0 obj\n<< /Length ${encoder.encode(contents).length} >>\nstream\n${contents}endstream\nendobj\n`]);
+
+  const xrefOffset = offset;
+  add(`xref\n0 ${offsets.length}\n0000000000 65535 f \n`);
+  offsets.slice(1).forEach((value) => add(`${String(value).padStart(10, "0")} 00000 n \n`));
+  add(`trailer\n<< /Size ${offsets.length} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`);
+
+  return new Blob(concatBytes(chunks), { type: "application/pdf" });
+}
+
+function base64ToBytes(base64) {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return bytes;
+}
+
+function concatBytes(chunks) {
+  const totalLength = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+  const bytes = new Uint8Array(totalLength);
+  let offset = 0;
+  chunks.forEach((chunk) => {
+    bytes.set(chunk, offset);
+    offset += chunk.length;
+  });
+  return [bytes];
 }
 
 function downloadBlob(blob, filename) {
