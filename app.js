@@ -365,6 +365,13 @@ function updateTotals() {
   resultText.classList.add("winner");
 }
 
+function addTeamHit(teamKey, amount) {
+  if (!amount) return;
+  const hitInput = document.querySelector(`[data-team="${teamKey}"] .hits`);
+  if (!hitInput) return;
+  hitInput.value = String(Number(hitInput.value || 0) + Number(amount || 0));
+}
+
 function formatRate(numerator, denominator) {
   if (!denominator) return ".000";
   return (numerator / denominator).toFixed(3).replace(/^0/, "");
@@ -425,6 +432,7 @@ function addPlateRecord(event) {
   };
 
   plateRecords.unshift(record);
+  addTeamHit(record.team, record.hit);
   playerName.value = "";
   moveToNextBatter(battingTeam.value, lineupSpot?.order);
   steals.value = "0";
