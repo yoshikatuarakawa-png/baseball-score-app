@@ -502,9 +502,10 @@ function addPlateRecord(event) {
   saveState();
 }
 
-function recordMatchupResult() {
+function recordMatchupResult(resultKey = matchupResult?.value || "out", options = {}) {
   syncBatterFromPitchingTeam();
-  plateResult.value = matchupResult?.value || "out";
+  plateResult.value = resultKey;
+  if (matchupResult) matchupResult.value = resultKey;
   statInclude.checked = true;
   const record = buildPlateRecordFromForm({});
   if (!record) return;
@@ -522,7 +523,8 @@ function recordMatchupResult() {
   plateMemo.value = "";
   renderRecords();
   saveState();
-  setDriveStatus(`${record.batter}の${record.result}を記録しました。次は${currentBatterLabel()}です`);
+  const prefix = options.auto ? "自動で" : "";
+  setDriveStatus(`${prefix}${record.batter}の${record.result}を記録しました。次は${currentBatterLabel()}です`);
 }
 
 function resultKeyForRecord(record) {
@@ -912,9 +914,10 @@ function addPitch(event) {
     return;
   }
 
+  const pitchType = event.currentTarget.dataset.pitch;
   currentCount = countForPitcher(pitcher);
   const countBefore = { ...currentCount };
-  applyPitchToCount(event.currentTarget.dataset.pitch);
+  applyPitchToCount(pitchType);
   setCountForPitcher(pitcher, currentCount);
 
   pitchRecords.push({
@@ -922,10 +925,16 @@ function addPitch(event) {
     game: currentGameLabel(),
     gameDate: gameDate.value,
     pitcher,
-    type: event.currentTarget.dataset.pitch,
+    type: pitchType,
     countBefore,
     countAfter: { ...currentCount },
   });
+
+  if (pitchType === "ball" && currentCount.balls >= 4) {
+    recordMatchupResult("walk", { auto: true });
+    return;
+  }
+
   renderPitchCounts();
   saveState();
 }
