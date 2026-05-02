@@ -522,7 +522,7 @@ function recordMatchupResult() {
   plateMemo.value = "";
   renderRecords();
   saveState();
-  setDriveStatus(`${record.batter}の${record.result}を記録しました`);
+  setDriveStatus(`${record.batter}の${record.result}を記録しました。次は${currentBatterLabel()}です`);
 }
 
 function resultKeyForRecord(record) {
@@ -1067,8 +1067,8 @@ function renderPitchCounts() {
 }
 
 function countStatusText() {
-  if (currentCount.balls >= 4) return "四球です。次の打者を押すとカウントを戻せます。";
-  if (currentCount.strikes >= 3) return "三振です。次の打者を押すとカウントを戻せます。";
+  if (currentCount.balls >= 4) return "四球です。対戦結果を記録すると次の打者へ進みます。";
+  if (currentCount.strikes >= 3) return "三振です。対戦結果を記録すると次の打者へ進みます。";
   return `${currentCount.balls}ボール ${currentCount.strikes}ストライク`;
 }
 
@@ -3117,7 +3117,7 @@ playerName.addEventListener("input", updatePinchStatus);
 recordMatchupButton?.addEventListener("click", recordMatchupResult);
 pitchButtons.forEach((button) => button.addEventListener("click", addPitch));
 undoPitchButton.addEventListener("click", undoPitch);
-resetCountButton.addEventListener("click", resetCount);
+resetCountButton?.addEventListener("click", resetCount);
 addOutButton.addEventListener("click", addOut);
 undoOutButton.addEventListener("click", undoOut);
 pitcherName.addEventListener("input", syncCurrentCountFromPitcher);

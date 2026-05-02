@@ -7,8 +7,8 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="野球スコア" />
     <title>野球スコア入力</title>
-    <link rel="stylesheet" href="styles.css?v=32" />
-    <link rel="manifest" href="manifest.webmanifest?v=32" />
+    <link rel="stylesheet" href="styles.css?v=33" />
+    <link rel="manifest" href="manifest.webmanifest?v=33" />
     <script src="https://accounts.google.com/gsi/client" async defer></script>
   </head>
   <body>
@@ -170,7 +170,6 @@
             <button class="pitch-button foul" type="button" data-pitch="foul">ファール</button>
           </div>
           <button id="undoPitchButton" class="ghost-button" type="button">1球戻す</button>
-          <button id="resetCountButton" class="ghost-button" type="button">次の打者</button>
           <button id="addOutButton" class="ghost-button" type="button">アウト+1</button>
           <button id="undoOutButton" class="ghost-button" type="button">アウト戻す</button>
         </div>
@@ -424,11 +423,11 @@
       </section>
     </main>
 
-    <script src="base-data.js?v=32"></script>
-    <script src="app.js?v=32"></script>
+    <script src="base-data.js?v=33"></script>
+    <script src="app.js?v=33"></script>
     <script>
       if ("serviceWorker" in navigator && location.protocol !== "file:") {
-        navigator.serviceWorker.register("service-worker.js?v=32").then((registration) => registration.update());
+        navigator.serviceWorker.register("service-worker.js?v=33").then((registration) => registration.update());
       }
     </script>
   </body>

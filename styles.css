@@ -481,7 +481,7 @@ h2 {
 
 .pitch-controls {
   display: grid;
-  grid-template-columns: minmax(132px, 0.8fr) minmax(180px, 1fr) 2fr repeat(4, auto);
+  grid-template-columns: minmax(132px, 0.8fr) minmax(180px, 1fr) 2fr repeat(3, auto);
   gap: 14px;
   align-items: end;
   margin-bottom: 14px;
