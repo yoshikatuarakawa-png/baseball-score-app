@@ -46,6 +46,7 @@ const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file";
 const DRIVE_SYNC_FILE = "baseball-score-app-data.json";
 const DRIVE_PUBLIC_VIEW_FILE = "baseball-score-public-view.json";
 const DRIVE_MIME = "application/json";
+const NUMERIC_BATTER_CLEANUP_GAME = "井田ふたば";
 const scoreBody = document.querySelector("#scoreBody");
 const resultText = document.querySelector("#resultText");
 const totalRuns = document.querySelector("#totalRuns");
@@ -477,12 +478,64 @@ function summarizeRecords() {
   });
 
   return allRecords().reduce((summary, record) => {
-    summary[record.batter] = summary[record.batter] || empty();
-    Object.keys(summary[record.batter]).forEach((key) => {
-      summary[record.batter][key] += Number(record[key] || 0);
+    const batter = normalizedText(record.batter);
+    if (!batter) return summary;
+    summary[batter] = summary[batter] || empty();
+    Object.keys(summary[batter]).forEach((key) => {
+      summary[batter][key] += Number(record[key] || 0);
     });
     return summary;
   }, {});
+}
+
+function normalizedText(value) {
+  return String(value ?? "").normalize("NFKC").trim();
+}
+
+function isNumericOnlyBatter(record) {
+  return /^\d+$/.test(normalizedText(record?.batter));
+}
+
+function textIncludesGameTarget(value, target) {
+  const needle = normalizedText(target);
+  return Boolean(needle && normalizedText(value).includes(needle));
+}
+
+function recordMatchesCleanupGame(record, target) {
+  return [record?.game, record?.gameName, record?.opponent].some((value) => textIncludesGameTarget(value, target));
+}
+
+function gameMatchesCleanupGame(game, target) {
+  return [game?.name, game?.opponent, game?.memo, game?.notes].some((value) => textIncludesGameTarget(value, target));
+}
+
+function cleanupNumericOnlyBatters(target = NUMERIC_BATTER_CLEANUP_GAME) {
+  let removed = 0;
+  const currentGameMatches = [gameName.value, currentGameLabel()].some((value) => textIncludesGameTarget(value, target));
+
+  plateRecords = plateRecords.filter((record) => {
+    const shouldRemove = isNumericOnlyBatter(record) && (currentGameMatches || recordMatchesCleanupGame(record, target));
+    if (shouldRemove) removed += 1;
+    return !shouldRemove;
+  });
+
+  gameHistory = gameHistory.map((game) => {
+    if (!gameMatchesCleanupGame(game, target) || !Array.isArray(game.records)) return game;
+
+    const records = game.records.filter((record) => {
+      const shouldRemove = isNumericOnlyBatter(record);
+      if (shouldRemove) removed += 1;
+      return !shouldRemove;
+    });
+
+    return records.length === game.records.length ? game : { ...game, records };
+  });
+
+  return removed;
+}
+
+function numericBatterCleanupMessage(count) {
+  return `井田ふたば戦の数字のみ打者を${count}件削除しました`;
 }
 
 function savedPlateRecords() {
@@ -868,6 +921,7 @@ function scoreLabel(rows = currentScoreSnapshot()) {
 }
 
 function saveCurrentGame() {
+  const removedNumericBatters = cleanupNumericOnlyBatters();
   const snapshot = currentScoreSnapshot();
   const pitches = pitchTotals();
   const savedGame = {
@@ -895,7 +949,10 @@ function saveCurrentGame() {
   } else {
     gameHistory.unshift(savedGame);
   }
-  renderGameHistory();
+  renderRecords();
+  if (removedNumericBatters) {
+    setDriveStatus(numericBatterCleanupMessage(removedNumericBatters));
+  }
   saveState();
 }
 
@@ -1170,7 +1227,7 @@ function loadState() {
   }
 }
 
-function applyStatePayload(payload) {
+function applyStatePayload(payload, options = {}) {
   gameDate.value = payload.gameDate || "";
   venue.value = payload.venue || "";
   gameName.value = payload.gameName || "";
@@ -1190,6 +1247,7 @@ function applyStatePayload(payload) {
   gameHistory = Array.isArray(payload.gameHistory) ? payload.gameHistory : [];
   battingTeam.value = payload.battingTeam || "away";
   statInclude.checked = payload.statInclude !== false;
+  const removedNumericBatters = cleanupNumericOnlyBatters();
 
   applyScoreRows(payload.rows || []);
   buildBattingOrderOptions();
@@ -1199,6 +1257,11 @@ function applyStatePayload(payload) {
   renderRecords();
   renderPitchCounts();
   renderGameHistory();
+  if (removedNumericBatters) {
+    setDriveStatus(numericBatterCleanupMessage(removedNumericBatters));
+    if (options.persistCleanup !== false) saveState();
+  }
+  return removedNumericBatters;
 }
 
 async function loadSharedViewFromUrl() {
@@ -1207,7 +1270,7 @@ async function loadSharedViewFromUrl() {
   if (token) {
     try {
       const payload = JSON.parse(await decodeShareToken(token));
-      applyStatePayload(payload);
+      applyStatePayload(payload, { persistCleanup: false });
       enableViewOnlyMode();
       return true;
     } catch (error) {
@@ -1219,7 +1282,7 @@ async function loadSharedViewFromUrl() {
   if (publicFileId) {
     try {
       const payload = await fetchPublicViewPayload(publicFileId);
-      applyStatePayload(payload);
+      applyStatePayload(payload, { persistCleanup: false });
       enableViewOnlyMode();
       return true;
     } catch (error) {
@@ -2488,9 +2551,10 @@ async function loadFromDrive() {
     }
     const response = await driveRequest(`https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`);
     const payload = await response.json();
-    applyStatePayload(payload);
-    saveState();
-    setDriveStatus(`Drive読込済み ${new Date().toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })}`);
+      const removedNumericBatters = applyStatePayload(payload);
+      saveState();
+      const loadedAt = new Date().toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" });
+      setDriveStatus(removedNumericBatters ? `Drive読込済み / ${numericBatterCleanupMessage(removedNumericBatters)}` : `Drive読込済み ${loadedAt}`);
   } catch (error) {
     console.error(error);
     setDriveStatus("Drive読込失敗");

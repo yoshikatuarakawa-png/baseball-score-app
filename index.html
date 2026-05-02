@@ -7,8 +7,8 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="野球スコア" />
     <title>野球スコア入力</title>
-    <link rel="stylesheet" href="styles.css" />
-    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="stylesheet" href="styles.css?v=27" />
+    <link rel="manifest" href="manifest.webmanifest?v=27" />
     <script src="https://accounts.google.com/gsi/client" async defer></script>
   </head>
   <body>
@@ -381,11 +381,11 @@
       </section>
     </main>
 
-    <script src="base-data.js"></script>
-    <script src="app.js"></script>
+    <script src="base-data.js?v=27"></script>
+    <script src="app.js?v=27"></script>
     <script>
       if ("serviceWorker" in navigator && location.protocol !== "file:") {
-        navigator.serviceWorker.register("service-worker.js");
+        navigator.serviceWorker.register("service-worker.js?v=27").then((registration) => registration.update());
       }
     </script>
   </body>
