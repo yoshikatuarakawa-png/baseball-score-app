@@ -231,16 +231,6 @@ function buildLineupForTeam(teamKey, body) {
     playerCell.append(starterInput);
     row.append(playerCell);
 
-    const currentPlayerCell = document.createElement("td");
-    const playerInput = document.createElement("input");
-    playerInput.type = "text";
-    playerInput.value = spot.player;
-    playerInput.setAttribute("list", "playerList");
-    playerInput.setAttribute("aria-label", `${teamLabel(teamKey)} ${spot.order}番 現在の打者`);
-    playerInput.addEventListener("input", () => updateLineup(teamKey, index, "player", playerInput.value));
-    currentPlayerCell.append(playerInput);
-    row.append(currentPlayerCell);
-
     const positionCell = document.createElement("td");
     const positionSelect = document.createElement("select");
     positionSelect.setAttribute("aria-label", `${teamLabel(teamKey)} ${spot.order}番 ポジション`);
@@ -276,7 +266,7 @@ function buildLineupForTeam(teamKey, body) {
 
 function updateLineup(teamKey, index, key, value) {
   lineups[teamKey][index][key] = value;
-  if (key === "starter" && !lineups[teamKey][index].player) {
+  if (key === "starter") {
     lineups[teamKey][index].player = value;
     buildLineup({ syncActive: battingTeam.value === teamKey && String(battingOrder.value) === String(lineups[teamKey][index].order) });
   } else {

@@ -7,8 +7,8 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="野球スコア" />
     <title>野球スコア入力</title>
-    <link rel="stylesheet" href="styles.css?v=31" />
-    <link rel="manifest" href="manifest.webmanifest?v=31" />
+    <link rel="stylesheet" href="styles.css?v=32" />
+    <link rel="manifest" href="manifest.webmanifest?v=32" />
     <script src="https://accounts.google.com/gsi/client" async defer></script>
   </head>
   <body>
@@ -103,7 +103,7 @@
             <p class="eyebrow">Lineup</p>
             <h2>打順・ポジション</h2>
           </div>
-          <p class="hint">先発と現在の打者が違う場合は代打として記録されます。</p>
+          <p class="hint">先攻と後攻を左右に並べて確認できます。</p>
         </div>
         <div class="lineup-grid">
           <div>
@@ -114,7 +114,6 @@
                   <tr>
                     <th>打順</th>
                     <th>先発</th>
-                    <th>現在の打者</th>
                     <th>守備</th>
                     <th>メモ</th>
                     <th>入力</th>
@@ -132,7 +131,6 @@
                   <tr>
                     <th>打順</th>
                     <th>先発</th>
-                    <th>現在の打者</th>
                     <th>守備</th>
                     <th>メモ</th>
                     <th>入力</th>
@@ -426,11 +424,11 @@
       </section>
     </main>
 
-    <script src="base-data.js?v=31"></script>
-    <script src="app.js?v=31"></script>
+    <script src="base-data.js?v=32"></script>
+    <script src="app.js?v=32"></script>
     <script>
       if ("serviceWorker" in navigator && location.protocol !== "file:") {
-        navigator.serviceWorker.register("service-worker.js?v=31").then((registration) => registration.update());
+        navigator.serviceWorker.register("service-worker.js?v=32").then((registration) => registration.update());
       }
     </script>
   </body>
