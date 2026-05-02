@@ -481,6 +481,36 @@ h2 {
   margin-bottom: 14px;
 }
 
+.matchup-strip {
+  display: grid;
+  grid-template-columns: 1fr 1.4fr 0.8fr;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.matchup-strip div {
+  min-height: 72px;
+  border-left: 5px solid var(--green);
+  border-radius: 6px;
+  background: #f7faf7;
+  padding: 10px 12px;
+}
+
+.matchup-strip span {
+  display: block;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+.matchup-strip strong {
+  display: block;
+  margin-top: 5px;
+  color: var(--ink);
+  font-size: 1.25rem;
+  line-height: 1.25;
+}
+
 .pitch-buttons {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -550,7 +580,7 @@ h2 {
 
 .pitch-totals {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 10px;
   margin-bottom: 14px;
 }
@@ -847,6 +877,7 @@ h2 {
   .summary,
   .plate-form,
   .pitch-controls,
+  .matchup-strip,
   .pitch-totals,
   .current-count,
   .detail-grid {

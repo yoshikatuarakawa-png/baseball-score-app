@@ -90,10 +90,14 @@ const currentFouls = document.querySelector("#currentFouls");
 const currentPitchTotal = document.querySelector("#currentPitchTotal");
 const currentOutsDisplay = document.querySelector("#currentOuts") || { textContent: "0" };
 const countStatus = document.querySelector("#countStatus");
+const matchupPitcher = document.querySelector("#matchupPitcher");
+const matchupBatter = document.querySelector("#matchupBatter");
+const matchupStrikeRate = document.querySelector("#matchupStrikeRate");
 const gamePitchTotal = document.querySelector("#gamePitchTotal");
 const gameStrikeTotal = document.querySelector("#gameStrikeTotal");
 const gameBallTotal = document.querySelector("#gameBallTotal");
 const gameFoulTotal = document.querySelector("#gameFoulTotal");
+const gameStrikeRate = document.querySelector("#gameStrikeRate");
 const pitchSummaryBody = document.querySelector("#pitchSummaryBody");
 const awayLineupBody = document.querySelector("#awayLineupBody");
 const homeLineupBody = document.querySelector("#homeLineupBody");
@@ -330,6 +334,7 @@ function updatePinchStatus() {
   const isPinch = Boolean(starter && current && starter !== current);
   pinchStatus.textContent = isPinch ? `代打: ${starter} → ${current}` : "通常";
   pinchStatus.classList.toggle("active", isPinch);
+  updateMatchupDisplay();
 }
 
 function readScore(row) {
@@ -944,6 +949,31 @@ function pitchTotals(records = pitchRecords) {
   );
 }
 
+function strikeLikeTotal(row) {
+  return Number(row.strike || 0) + Number(row.foul || 0);
+}
+
+function formatPercent(numerator, denominator) {
+  if (!denominator) return "0.0%";
+  return `${((Number(numerator || 0) / Number(denominator || 0)) * 100).toFixed(1)}%`;
+}
+
+function currentBatterLabel() {
+  const spot = currentLineupSpot();
+  const batter = playerName.value.trim() || spot?.player?.trim() || spot?.starter?.trim() || "未入力";
+  const order = battingOrder.value ? `${battingOrder.value}番` : "";
+  const team = teamLabel(battingTeam.value);
+  return [team, order, batter].filter(Boolean).join(" ");
+}
+
+function updateMatchupDisplay() {
+  const pitcher = normalizePitcherName(pitcherName.value) || fallbackPitcherName() || "未入力";
+  const pitcherSummary = summarizePitches()[pitcher] || emptyPitchCount();
+  if (matchupPitcher) matchupPitcher.textContent = pitcher;
+  if (matchupBatter) matchupBatter.textContent = currentBatterLabel();
+  if (matchupStrikeRate) matchupStrikeRate.textContent = formatPercent(strikeLikeTotal(pitcherSummary), pitcherSummary.total);
+}
+
 function renderPitchCounts() {
   const totals = pitchTotals();
   currentBalls.textContent = String(currentCount.balls);
@@ -956,6 +986,8 @@ function renderPitchCounts() {
   gameStrikeTotal.textContent = String(totals.strike);
   gameBallTotal.textContent = String(totals.ball);
   gameFoulTotal.textContent = String(totals.foul);
+  if (gameStrikeRate) gameStrikeRate.textContent = formatPercent(strikeLikeTotal(totals), totals.total);
+  updateMatchupDisplay();
 
   const rows = Object.entries(summarizePitches()).sort((a, b) => b[1].total - a[1].total || a[0].localeCompare(b[0], "ja"));
   pitchSummaryBody.innerHTML = rows.length
@@ -967,11 +999,12 @@ function renderPitchCounts() {
             <td>${row.strike}</td>
             <td>${row.ball}</td>
             <td>${row.foul}</td>
+            <td>${formatPercent(strikeLikeTotal(row), row.total)}</td>
             <td>${pitcherCountText(pitcher)}</td>
           </tr>
         `)
         .join("")
-    : `<tr class="empty-row"><td colspan="6">投球を記録するとここに投手別集計が出ます</td></tr>`;
+    : `<tr class="empty-row"><td colspan="7">投球を記録するとここに投手別集計が出ます</td></tr>`;
 }
 
 function countStatusText() {
@@ -1104,7 +1137,7 @@ function showGameDetail(gameId) {
       <h3>投球記録</h3>
       <div class="table-wrap">
         <table class="pitch-table">
-          <thead><tr><th>投手</th><th>投球数</th><th>ストライク</th><th>ボール</th><th>ファール</th></tr></thead>
+          <thead><tr><th>投手</th><th>投球数</th><th>ストライク</th><th>ボール</th><th>ファール</th><th>S率</th></tr></thead>
           <tbody>${renderDetailPitchSummary(game.pitchRecords || [])}</tbody>
         </table>
       </div>
@@ -1212,7 +1245,7 @@ function renderDetailPitchSummary(records) {
     return rows;
   }, {});
   const rows = Object.entries(summary);
-  if (!rows.length) return `<tr class="empty-row"><td colspan="5">投球記録はありません</td></tr>`;
+  if (!rows.length) return `<tr class="empty-row"><td colspan="6">投球記録はありません</td></tr>`;
   return rows
     .map(([pitcher, row]) => `
       <tr>
@@ -1221,6 +1254,7 @@ function renderDetailPitchSummary(records) {
         <td>${row.strike}</td>
         <td>${row.ball}</td>
         <td>${row.foul}</td>
+        <td>${formatPercent(strikeLikeTotal(row), row.total)}</td>
       </tr>
     `)
     .join("");
@@ -1499,7 +1533,7 @@ function buildViewOnlyText(payload) {
   const pitchRows = Object.entries(pitchSummary).sort((a, b) => b[1].total - a[1].total || a[0].localeCompare(b[0], "ja"));
   if (pitchRows.length) {
     pitchRows.forEach(([pitcher, row]) => {
-      lines.push(`${pitcher}: ${row.total}球  S:${row.strike} B:${row.ball} F:${row.foul}`);
+      lines.push(`${pitcher}: ${row.total}球  S:${row.strike} B:${row.ball} F:${row.foul}  S率:${formatPercent(strikeLikeTotal(row), row.total)}`);
     });
   } else {
     lines.push("なし");
@@ -2007,21 +2041,21 @@ function drawPitchSummaryPdf(ctx, savedPitchRecords, x, y, width, height) {
   const rows = Object.entries(summarizePitches(savedPitchRecords)).sort((a, b) => b[1].total - a[1].total || a[0].localeCompare(b[0], "ja"));
   const rowHeight = 34;
   const top = y + 52;
-  const headers = ["投手", "球", "S", "B", "F"];
-  const columns = [width - 214, 52, 52, 52, 52];
+  const headers = ["投手", "球", "S", "B", "F", "S率"];
+  const columns = [width - 304, 50, 48, 48, 48, 82];
   let left = x + 14;
   headers.forEach((header, index) => {
     drawPdfCell(ctx, header, left, top, columns[index], 30, { header: true, align: "center", fontSize: 16 });
     left += columns[index];
   });
   rows.slice(0, 5).forEach(([pitcher, row], index) => {
-    const values = [pitcher, row.total, row.strike, row.ball, row.foul];
+    const values = [pitcher, row.total, row.strike, row.ball, row.foul, formatPercent(strikeLikeTotal(row), row.total)];
     let cellX = x + 14;
     values.forEach((value, columnIndex) => {
       drawPdfCell(ctx, value, cellX, top + 30 + rowHeight * index, columns[columnIndex], rowHeight, {
         fill: index % 2 === 0 ? "#ffffff" : "#f9faf8",
         align: columnIndex === 0 ? "left" : "center",
-        fontSize: 16,
+        fontSize: 15,
       });
       cellX += columns[columnIndex];
     });
@@ -2467,8 +2501,9 @@ function buildViewOnlyHtml(payloadText) {
       return summary;
     }, {});
     const pitchRows = Object.entries(pitchSummary).sort((a, b) => b[1].total - a[1].total);
-    document.getElementById("pitchTable").innerHTML = "<thead><tr><th>投手</th><th>合計</th><th>ストライク</th><th>ボール</th><th>ファール</th></tr></thead><tbody>" +
-      (pitchRows.length ? pitchRows.map(([name, row]) => "<tr>" + td(name) + td(row.total) + td(row.strike) + td(row.ball) + td(row.foul) + "</tr>").join("") : "<tr><td colspan='5'>投球記録はありません。</td></tr>") + "</tbody>";
+    const rate = (row) => row.total ? (((Number(row.strike || 0) + Number(row.foul || 0)) / Number(row.total || 0)) * 100).toFixed(1) + "%" : "0.0%";
+    document.getElementById("pitchTable").innerHTML = "<thead><tr><th>投手</th><th>合計</th><th>ストライク</th><th>ボール</th><th>ファール</th><th>S率</th></tr></thead><tbody>" +
+      (pitchRows.length ? pitchRows.map(([name, row]) => "<tr>" + td(name) + td(row.total) + td(row.strike) + td(row.ball) + td(row.foul) + td(rate(row)) + "</tr>").join("") : "<tr><td colspan='6'>投球記録はありません。</td></tr>") + "</tbody>";
   </script>
 </body>
 </html>`;

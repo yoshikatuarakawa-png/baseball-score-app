@@ -7,8 +7,8 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="野球スコア" />
     <title>野球スコア入力</title>
-    <link rel="stylesheet" href="styles.css?v=29" />
-    <link rel="manifest" href="manifest.webmanifest?v=29" />
+    <link rel="stylesheet" href="styles.css?v=30" />
+    <link rel="manifest" href="manifest.webmanifest?v=30" />
     <script src="https://accounts.google.com/gsi/client" async defer></script>
   </head>
   <body>
@@ -170,6 +170,21 @@
           <button id="undoOutButton" class="ghost-button" type="button">アウト戻す</button>
         </div>
 
+        <div class="matchup-strip" aria-label="現在の対戦">
+          <div>
+            <span>投手</span>
+            <strong id="matchupPitcher">未入力</strong>
+          </div>
+          <div>
+            <span>打者</span>
+            <strong id="matchupBatter">未入力</strong>
+          </div>
+          <div>
+            <span>投手S率</span>
+            <strong id="matchupStrikeRate">0.0%</strong>
+          </div>
+        </div>
+
         <div class="current-count" aria-label="現在のカウント">
           <div><span>ボール</span><strong id="currentBalls">0</strong></div>
           <div><span>ストライク</span><strong id="currentStrikes">0</strong></div>
@@ -184,6 +199,7 @@
           <div><span>ストライク</span><strong id="gameStrikeTotal">0</strong></div>
           <div><span>ボール</span><strong id="gameBallTotal">0</strong></div>
           <div><span>ファール</span><strong id="gameFoulTotal">0</strong></div>
+          <div><span>S率</span><strong id="gameStrikeRate">0.0%</strong></div>
         </div>
 
         <div class="table-wrap">
@@ -195,6 +211,7 @@
                 <th>ストライク</th>
                 <th>ボール</th>
                 <th>ファール</th>
+                <th>S率</th>
                 <th>現在のカウント</th>
               </tr>
             </thead>
@@ -383,11 +400,11 @@
       </section>
     </main>
 
-    <script src="base-data.js?v=29"></script>
-    <script src="app.js?v=29"></script>
+    <script src="base-data.js?v=30"></script>
+    <script src="app.js?v=30"></script>
     <script>
       if ("serviceWorker" in navigator && location.protocol !== "file:") {
-        navigator.serviceWorker.register("service-worker.js?v=29").then((registration) => registration.update());
+        navigator.serviceWorker.register("service-worker.js?v=30").then((registration) => registration.update());
       }
     </script>
   </body>
