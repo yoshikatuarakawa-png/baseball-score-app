@@ -7,8 +7,8 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="野球スコア" />
     <title>野球スコア入力</title>
-    <link rel="stylesheet" href="styles.css?v=30" />
-    <link rel="manifest" href="manifest.webmanifest?v=30" />
+    <link rel="stylesheet" href="styles.css?v=31" />
+    <link rel="manifest" href="manifest.webmanifest?v=31" />
     <script src="https://accounts.google.com/gsi/client" async defer></script>
   </head>
   <body>
@@ -156,6 +156,13 @@
 
         <div class="pitch-controls">
           <label>
+            投手チーム
+            <select id="pitchingTeam">
+              <option value="away">先攻</option>
+              <option value="home">後攻</option>
+            </select>
+          </label>
+          <label>
             投手
             <input id="pitcherName" type="text" list="playerList" placeholder="例: ユリナ" />
           </label>
@@ -183,6 +190,25 @@
             <span>投手S率</span>
             <strong id="matchupStrikeRate">0.0%</strong>
           </div>
+        </div>
+
+        <div class="matchup-result-row">
+          <label>
+            対戦結果
+            <select id="matchupResult">
+              <option value="out">凡退</option>
+              <option value="swingK">空振り三振</option>
+              <option value="lookK">見逃し三振</option>
+              <option value="single">単打</option>
+              <option value="double">二塁打</option>
+              <option value="triple">三塁打</option>
+              <option value="homerun">本塁打</option>
+              <option value="walk">四球</option>
+              <option value="hbp">死球</option>
+              <option value="sac">犠打</option>
+            </select>
+          </label>
+          <button id="recordMatchupButton" class="primary-button" type="button">結果を記録して次へ</button>
         </div>
 
         <div class="current-count" aria-label="現在のカウント">
@@ -400,11 +426,11 @@
       </section>
     </main>
 
-    <script src="base-data.js?v=30"></script>
-    <script src="app.js?v=30"></script>
+    <script src="base-data.js?v=31"></script>
+    <script src="app.js?v=31"></script>
     <script>
       if ("serviceWorker" in navigator && location.protocol !== "file:") {
-        navigator.serviceWorker.register("service-worker.js?v=30").then((registration) => registration.update());
+        navigator.serviceWorker.register("service-worker.js?v=31").then((registration) => registration.update());
       }
     </script>
   </body>

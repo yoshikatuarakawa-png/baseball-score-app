@@ -475,7 +475,7 @@ h2 {
 
 .pitch-controls {
   display: grid;
-  grid-template-columns: minmax(180px, 1fr) 2fr repeat(4, auto);
+  grid-template-columns: minmax(132px, 0.8fr) minmax(180px, 1fr) 2fr repeat(4, auto);
   gap: 14px;
   align-items: end;
   margin-bottom: 14px;
@@ -509,6 +509,18 @@ h2 {
   color: var(--ink);
   font-size: 1.25rem;
   line-height: 1.25;
+}
+
+.matchup-result-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.7fr) auto;
+  gap: 10px;
+  align-items: end;
+  margin-bottom: 14px;
+}
+
+.matchup-result-row button {
+  min-height: 46px;
 }
 
 .pitch-buttons {
@@ -878,6 +890,7 @@ h2 {
   .plate-form,
   .pitch-controls,
   .matchup-strip,
+  .matchup-result-row,
   .pitch-totals,
   .current-count,
   .detail-grid {

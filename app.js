@@ -66,6 +66,7 @@ const gameName = document.querySelector("#gameName");
 const venue = document.querySelector("#venue");
 const notes = document.querySelector("#notes");
 const plateForm = document.querySelector("#plateForm");
+const pitchingTeam = document.querySelector("#pitchingTeam");
 const battingTeam = document.querySelector("#battingTeam");
 const battingOrder = document.querySelector("#battingOrder");
 const playerName = document.querySelector("#playerName");
@@ -93,6 +94,8 @@ const countStatus = document.querySelector("#countStatus");
 const matchupPitcher = document.querySelector("#matchupPitcher");
 const matchupBatter = document.querySelector("#matchupBatter");
 const matchupStrikeRate = document.querySelector("#matchupStrikeRate");
+const matchupResult = document.querySelector("#matchupResult");
+const recordMatchupButton = document.querySelector("#recordMatchupButton");
 const gamePitchTotal = document.querySelector("#gamePitchTotal");
 const gameStrikeTotal = document.querySelector("#gameStrikeTotal");
 const gameBallTotal = document.querySelector("#gameBallTotal");
@@ -294,6 +297,10 @@ function teamLabel(teamKey) {
   return "";
 }
 
+function opponentTeam(teamKey) {
+  return teamKey === "away" ? "home" : "away";
+}
+
 function buildBattingOrderOptions() {
   const selectedOrder = battingOrder.value || "1";
   battingOrder.innerHTML = lineups[battingTeam.value]
@@ -318,8 +325,38 @@ function currentLineupSpot() {
   return lineups[battingTeam.value]?.find((spot) => String(spot.order) === String(battingOrder.value));
 }
 
+function lineupHasPlayer(spot) {
+  return Boolean(spot?.player?.trim() || spot?.starter?.trim());
+}
+
+function nextBattingOrderForTeam(teamKey) {
+  const filledLineup = lineups[teamKey].filter(lineupHasPlayer);
+  if (!filledLineup.length) return "1";
+
+  const newestRecord = plateRecords.find((record) => record.team === teamKey && record.source !== "base" && Number(record.battingOrder || 0));
+  if (!newestRecord) return String(filledLineup[0].order);
+
+  const currentOrder = Number(newestRecord.battingOrder);
+  const nextSpot =
+    filledLineup.find((spot) => spot.order > currentOrder) ||
+    filledLineup.find((spot) => spot.order === Math.min(...filledLineup.map((spot) => spot.order)));
+  return String(nextSpot?.order || filledLineup[0].order);
+}
+
+function selectNextBatterForTeam(teamKey) {
+  battingTeam.value = teamKey;
+  buildBattingOrderOptions();
+  battingOrder.value = nextBattingOrderForTeam(teamKey);
+  syncBatterFromOrder();
+}
+
+function syncBatterFromPitchingTeam() {
+  selectNextBatterForTeam(opponentTeam(pitchingTeam?.value || "away"));
+}
+
 function selectLineupSpot(teamKey, order) {
   battingTeam.value = teamKey;
+  if (pitchingTeam) pitchingTeam.value = opponentTeam(teamKey);
   buildBattingOrderOptions();
   battingOrder.value = String(order);
   syncBatterFromOrder();
@@ -475,6 +512,29 @@ function addPlateRecord(event) {
   saveState();
 }
 
+function recordMatchupResult() {
+  syncBatterFromPitchingTeam();
+  plateResult.value = matchupResult?.value || "out";
+  statInclude.checked = true;
+  const record = buildPlateRecordFromForm({});
+  if (!record) return;
+
+  plateRecords.unshift(record);
+  addTeamHit(record.team, record.hit);
+  moveToNextBatter(record.team, Number(record.battingOrder || battingOrder.value || 1));
+
+  const pitcher = normalizePitcherName(pitcherName.value);
+  currentCount = emptyPitchCount();
+  if (pitcher) setCountForPitcher(pitcher, currentCount);
+
+  steals.value = "0";
+  stealsOther.value = "0";
+  plateMemo.value = "";
+  renderRecords();
+  saveState();
+  setDriveStatus(`${record.batter}の${record.result}を記録しました`);
+}
+
 function resultKeyForRecord(record) {
   if (record?.resultKey && resultMap[record.resultKey]) return record.resultKey;
   const label = String(record?.result || "").replace(/^代打\s*/, "");
@@ -519,7 +579,7 @@ function finishPlateEdit() {
 }
 
 function moveToNextBatter(teamKey, currentOrder) {
-  const filledLineup = lineups[teamKey].filter((spot) => spot.player.trim() || spot.starter.trim());
+  const filledLineup = lineups[teamKey].filter(lineupHasPlayer);
   if (!filledLineup.length) return;
 
   const nextSpot =
@@ -816,7 +876,10 @@ function normalizePitcherName(name) {
   return String(name || "").trim();
 }
 
-function fallbackPitcherName() {
+function fallbackPitcherName(teamKey = pitchingTeam?.value) {
+  const teamPitcher = lineups[teamKey]?.find((spot) => spot.position === positions[0] && lineupHasPlayer(spot));
+  if (teamPitcher) return normalizePitcherName(teamPitcher.player || teamPitcher.starter);
+
   return normalizePitcherName(
     Object.values(lineups)
       .flat()
@@ -913,6 +976,12 @@ function resetCount() {
   const pitcher = normalizePitcherName(pitcherName.value);
   currentCount = emptyPitchCount();
   if (pitcher) setCountForPitcher(pitcher, currentCount);
+  const opponent = opponentTeam(pitchingTeam?.value || "away");
+  if (battingTeam.value === opponent) {
+    moveToNextBatter(opponent, Number(battingOrder.value || 0));
+  } else {
+    selectNextBatterForTeam(opponent);
+  }
   renderPitchCounts();
   saveState();
 }
@@ -969,7 +1038,7 @@ function currentBatterLabel() {
 function updateMatchupDisplay() {
   const pitcher = normalizePitcherName(pitcherName.value) || fallbackPitcherName() || "未入力";
   const pitcherSummary = summarizePitches()[pitcher] || emptyPitchCount();
-  if (matchupPitcher) matchupPitcher.textContent = pitcher;
+  if (matchupPitcher) matchupPitcher.textContent = [teamLabel(pitchingTeam?.value || ""), pitcher].filter(Boolean).join(" ");
   if (matchupBatter) matchupBatter.textContent = currentBatterLabel();
   if (matchupStrikeRate) matchupStrikeRate.textContent = formatPercent(strikeLikeTotal(pitcherSummary), pitcherSummary.total);
 }
@@ -1051,6 +1120,7 @@ function saveCurrentGame() {
     currentOuts,
     currentCount: structuredClone(currentCount),
     pitcherCounts: structuredClone(pitcherCounts),
+    pitchingTeam: pitchingTeam?.value || "away",
     activePitcher: pitcherName.value,
     scoreRows: snapshot,
     lineups: structuredClone(lineups),
@@ -1175,6 +1245,7 @@ function loadGameForEdit(gameId) {
     : { ...emptyPitchCount(), ...(game.currentCount || {}) };
   currentOuts = Number(game.currentOuts || 0) % 3;
   statInclude.checked = true;
+  if (pitchingTeam) pitchingTeam.value = game.pitchingTeam || opponentTeam("away");
   battingTeam.value = "away";
   buildLineup();
   updateTotals();
@@ -1319,8 +1390,10 @@ function buildStatePayload() {
     currentOuts,
     pitcherCounts,
     gameHistory,
+    pitchingTeam: pitchingTeam?.value || "away",
     battingTeam: battingTeam.value,
     battingOrder: battingOrder.value,
+    matchupResult: matchupResult?.value || "out",
     statInclude: statInclude.checked,
     activePitcher: pitcherName.value,
   };
@@ -1362,7 +1435,9 @@ function applyStatePayload(payload, options = {}) {
   currentOuts = Number(payload.currentOuts || 0) % 3;
   lineups = normalizeLineups(payload.lineups || payload.lineup);
   gameHistory = Array.isArray(payload.gameHistory) ? payload.gameHistory : [];
+  if (pitchingTeam) pitchingTeam.value = payload.pitchingTeam || opponentTeam(payload.battingTeam || "away");
   battingTeam.value = payload.battingTeam || "away";
+  if (matchupResult) matchupResult.value = payload.matchupResult || "out";
   statInclude.checked = payload.statInclude !== false;
   const removedNumericBatters = cleanupNumericOnlyBatters();
 
@@ -3004,11 +3079,13 @@ function escapeHtml(value) {
 
 buildRows();
 loadSharedViewFromUrl().then((loadedSharedView) => {
-  if (!loadedSharedView && !loadState()) {
+  const loadedState = !loadedSharedView && loadState();
+  if (!loadedSharedView && !loadedState) {
     gameDate.valueAsDate = new Date();
   }
   if (!viewOnlyMode) {
     buildLineup();
+    if (!loadedSharedView && !loadedState) syncBatterFromPitchingTeam();
     updateTotals();
     renderRecords();
   }
@@ -3030,7 +3107,13 @@ cancelPlateEditButton?.addEventListener("click", () => {
   setDriveStatus("打席の修正を取り消しました");
 });
 closeGameDetailButton.addEventListener("click", () => gameDetailPanel.classList.add("hidden"));
+pitchingTeam?.addEventListener("change", () => {
+  syncBatterFromPitchingTeam();
+  syncCurrentCountFromPitcher();
+  saveState();
+});
 battingTeam.addEventListener("change", () => {
+  if (pitchingTeam) pitchingTeam.value = opponentTeam(battingTeam.value);
   battingOrder.value = "1";
   buildBattingOrderOptions();
   syncBatterFromOrder();
@@ -3041,6 +3124,7 @@ battingOrder.addEventListener("change", () => {
   saveState();
 });
 playerName.addEventListener("input", updatePinchStatus);
+recordMatchupButton?.addEventListener("click", recordMatchupResult);
 pitchButtons.forEach((button) => button.addEventListener("click", addPitch));
 undoPitchButton.addEventListener("click", undoPitch);
 resetCountButton.addEventListener("click", resetCount);
