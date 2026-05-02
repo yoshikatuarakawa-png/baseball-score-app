@@ -503,9 +503,10 @@ function addPlateRecord(event) {
 }
 
 function recordMatchupResult(resultKey = matchupResult?.value || "out", options = {}) {
+  const selectedResult = typeof resultKey === "string" && resultMap[resultKey] ? resultKey : matchupResult?.value || "out";
   syncBatterFromPitchingTeam();
-  plateResult.value = resultKey;
-  if (matchupResult) matchupResult.value = resultKey;
+  plateResult.value = selectedResult;
+  if (matchupResult) matchupResult.value = selectedResult;
   statInclude.checked = true;
   const record = buildPlateRecordFromForm({});
   if (!record) return;
@@ -936,7 +937,7 @@ function addPitch(event) {
   }
 
   if (pitchType === "strike" && currentCount.strikes >= 3) {
-    recordMatchupResult("lookK", { auto: true });
+    recordMatchupResult("swingK", { auto: true });
     return;
   }
 
@@ -3128,7 +3129,7 @@ battingOrder.addEventListener("change", () => {
   saveState();
 });
 playerName.addEventListener("input", updatePinchStatus);
-recordMatchupButton?.addEventListener("click", recordMatchupResult);
+recordMatchupButton?.addEventListener("click", () => recordMatchupResult());
 pitchButtons.forEach((button) => button.addEventListener("click", addPitch));
 undoPitchButton.addEventListener("click", undoPitch);
 resetCountButton?.addEventListener("click", resetCount);
