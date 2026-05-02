@@ -1641,8 +1641,8 @@ async function shareSavedGamePdf(gameId) {
 
 async function shareGamePdfData(data, statusLabel) {
   setDriveStatus(`${statusLabel}作成中...`);
-  const canvas = buildGameResultCanvas(data);
-  const blob = await canvasToPdfBlob(canvas);
+  const canvases = buildGameResultCanvases(data);
+  const blob = await canvasToPdfBlob(canvases);
   const safeDate = safeFilePart(data.date || new Date().toISOString().slice(0, 10));
   const filename = `baseball-game-${safeDate}.pdf`;
   const file = new File([blob], filename, { type: "application/pdf" });
@@ -1651,7 +1651,7 @@ async function shareGamePdfData(data, statusLabel) {
     try {
       await navigator.share({
         title: statusLabel,
-        text: "試合結果を1枚にまとめたPDFです。",
+        text: "試合結果をまとめたPDFです。",
         files: [file],
       });
       setDriveStatus(`${statusLabel}を共有しました`);
@@ -1745,7 +1745,41 @@ function gamePdfSubtitle(data) {
   return [data.venue, scoreLabel(scoreRowsWithRuns(data.scoreRows || []))].filter(Boolean).join(" / ") || "試合情報なし";
 }
 
-function buildGameResultCanvas(data = currentGamePdfData()) {
+const GAME_PDF_FIRST_PAGE_PLATE_ROWS = 18;
+const GAME_PDF_EXTRA_PAGE_PLATE_ROWS = 36;
+
+function orderedPlateRecords(savedRecords) {
+  return [...(savedRecords || [])].reverse();
+}
+
+function buildGameResultCanvases(data = currentGamePdfData()) {
+  const records = orderedPlateRecords(data.records || []);
+  const firstPageRecords = records.slice(0, GAME_PDF_FIRST_PAGE_PLATE_ROWS);
+  const remainingRecords = records.slice(GAME_PDF_FIRST_PAGE_PLATE_ROWS);
+  const detailChunks = chunkItems(remainingRecords, GAME_PDF_EXTRA_PAGE_PLATE_ROWS);
+  const canvases = [
+    buildGameResultCanvas(data, {
+      plateRecords: firstPageRecords,
+      plateOverflowCount: remainingRecords.length,
+    }),
+  ];
+
+  detailChunks.forEach((chunk, index) => {
+    canvases.push(buildGamePlateRecordsCanvas(data, chunk, index + 1, detailChunks.length, GAME_PDF_FIRST_PAGE_PLATE_ROWS + index * GAME_PDF_EXTRA_PAGE_PLATE_ROWS + 1));
+  });
+
+  return canvases;
+}
+
+function chunkItems(items, size) {
+  const chunks = [];
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size));
+  }
+  return chunks;
+}
+
+function buildGameResultCanvas(data = currentGamePdfData(), options = {}) {
   const width = 1240;
   const height = 1754;
   const margin = 36;
@@ -1774,14 +1808,50 @@ function buildGameResultCanvas(data = currentGamePdfData()) {
   drawScoreboardPdf(ctx, scoreRows, margin, 140, contentWidth);
   drawGameInfoBoxes(ctx, scoreText, pitches.total, (data.records || []).length, data.currentOuts || 0, margin, 298, contentWidth);
   drawLineupPdf(ctx, data.lineups || createEmptyLineups(), margin, 398, contentWidth, 320);
-  drawPlateRecordsPdf(ctx, data.records || [], margin, 748, 738, 760);
+  drawPlateRecordsPdf(ctx, options.plateRecords || orderedPlateRecords(data.records || []), margin, 748, 738, 760, {
+    preordered: true,
+    startNumber: 1,
+    maxRows: GAME_PDF_FIRST_PAGE_PLATE_ROWS,
+    overflowCount: Number(options.plateOverflowCount || 0),
+  });
   drawPitchSummaryPdf(ctx, data.pitchRecords || [], margin + 762, 748, contentWidth - 762, 282);
   drawNotesPdf(ctx, data.notes || "", margin + 762, 1058, contentWidth - 762, 230);
   drawCurrentCountPdf(ctx, data.activePitcher || "", data.currentCount || emptyPitchCount(), data.currentOuts || 0, margin + 762, 1316, contentWidth - 762, 192);
 
   ctx.fillStyle = "#667076";
   ctx.font = '700 19px "Yu Gothic", "Segoe UI", sans-serif';
-  ctx.fillText("※このPDFは試合内容を1枚にまとめています。", margin, height - margin - 8);
+  ctx.fillText("※打席が多い場合は次ページ以降に続きます。", margin, height - margin - 8);
+  return canvas;
+}
+
+function buildGamePlateRecordsCanvas(data, records, pageIndex, totalPages, startNumber) {
+  const width = 1240;
+  const height = 1754;
+  const margin = 36;
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  const contentWidth = width - margin * 2;
+
+  ctx.fillStyle = "#f6f4ef";
+  ctx.fillRect(0, 0, width, height);
+  ctx.fillStyle = "#ffffff";
+  roundRect(ctx, margin / 2, margin / 2, width - margin, height - margin, 18);
+  ctx.fill();
+
+  ctx.fillStyle = "#0c4e3a";
+  ctx.font = '700 42px "Yu Gothic", "Segoe UI", sans-serif';
+  drawWrappedText(ctx, `${gamePdfTitle(data)} 打席結果`, margin, margin + 44, contentWidth, 46, 1);
+  ctx.fillStyle = "#667076";
+  ctx.font = '700 22px "Yu Gothic", "Segoe UI", sans-serif';
+  drawWrappedText(ctx, `${gamePdfSubtitle(data)} / 打席一覧 ${pageIndex}/${totalPages}`, margin, margin + 78, contentWidth, 26, 1);
+
+  drawPlateRecordsFullPagePdf(ctx, records, margin, 136, contentWidth, 1510, startNumber);
+
+  ctx.fillStyle = "#667076";
+  ctx.font = '700 19px "Yu Gothic", "Segoe UI", sans-serif';
+  ctx.fillText(`打席結果 ${startNumber}件目から表示`, margin, height - margin - 8);
   return canvas;
 }
 
@@ -1858,9 +1928,9 @@ function drawLineupTeamPdf(ctx, title, lineup, x, y, width, height) {
   });
 }
 
-function drawPlateRecordsPdf(ctx, savedRecords, x, y, width, height) {
+function drawPlateRecordsPdf(ctx, savedRecords, x, y, width, height, options = {}) {
   drawPdfPanel(ctx, "打席結果", x, y, width, height);
-  const records = [...savedRecords].reverse();
+  const records = options.preordered ? [...savedRecords] : orderedPlateRecords(savedRecords);
   const rowHeight = 34;
   const headerY = y + 46;
   const columns = [58, 70, 150, 180, width - 58 - 70 - 150 - 180 - 28];
@@ -1870,10 +1940,11 @@ function drawPlateRecordsPdf(ctx, savedRecords, x, y, width, height) {
     drawPdfCell(ctx, header, left, headerY, columns[index], 30, { header: true, align: "center", fontSize: 17 });
     left += columns[index];
   });
-  const maxRows = Math.min(records.length, 18);
+  const maxRows = Math.min(records.length, options.maxRows || 18);
+  const startNumber = Number(options.startNumber || 1);
   if (!records.length) drawEmptyPdfText(ctx, "打席記録はありません", x + 18, headerY + 66, width - 36);
   records.slice(0, maxRows).forEach((record, index) => {
-    const values = [index + 1, record.battingOrder || "-", record.batter || "", record.result || "", record.memo || ""];
+    const values = [startNumber + index, record.battingOrder || "-", record.batter || "", record.result || "", record.memo || ""];
     let cellX = x + 14;
     values.forEach((value, columnIndex) => {
       drawPdfCell(ctx, value, cellX, headerY + 30 + rowHeight * index, columns[columnIndex], rowHeight, {
@@ -1884,11 +1955,51 @@ function drawPlateRecordsPdf(ctx, savedRecords, x, y, width, height) {
       cellX += columns[columnIndex];
     });
   });
-  if (records.length > maxRows) {
+  const overflowCount = Number(options.overflowCount ?? records.length - maxRows);
+  if (overflowCount > 0) {
     ctx.fillStyle = "#667076";
     ctx.font = '700 17px "Yu Gothic", "Segoe UI", sans-serif';
-    ctx.fillText(`ほか${records.length - maxRows}件`, x + 18, y + height - 18);
+    ctx.fillText(`続きは次ページ（ほか${overflowCount}件）`, x + 18, y + height - 18);
   }
+}
+
+function drawPlateRecordsFullPagePdf(ctx, records, x, y, width, height, startNumber) {
+  drawPdfPanel(ctx, "打席結果（全件）", x, y, width, height);
+  const rowHeight = 38;
+  const headerY = y + 54;
+  const columns = [66, 86, 76, 176, 214, 76, width - 66 - 86 - 76 - 176 - 214 - 76 - 28];
+  const headers = ["No", "チーム", "打順", "打者", "結果", "盗塁", "メモ"];
+  let left = x + 14;
+  headers.forEach((header, index) => {
+    drawPdfCell(ctx, header, left, headerY, columns[index], 32, { header: true, align: "center", fontSize: 18 });
+    left += columns[index];
+  });
+
+  if (!records.length) {
+    drawEmptyPdfText(ctx, "打席記録はありません", x + 18, headerY + 72, width - 36);
+    return;
+  }
+
+  records.forEach((record, index) => {
+    const values = [
+      startNumber + index,
+      teamLabel(record.team || "") || "-",
+      record.battingOrder || "-",
+      record.batter || "",
+      record.result || "",
+      Number(record.steal || 0) || "-",
+      record.memo || "",
+    ];
+    let cellX = x + 14;
+    values.forEach((value, columnIndex) => {
+      drawPdfCell(ctx, value, cellX, headerY + 32 + rowHeight * index, columns[columnIndex], rowHeight, {
+        fill: index % 2 === 0 ? "#ffffff" : "#f9faf8",
+        align: columnIndex < 3 || columnIndex === 5 ? "center" : "left",
+        fontSize: 17,
+      });
+      cellX += columns[columnIndex];
+    });
+  });
 }
 
 function drawPitchSummaryPdf(ctx, savedPitchRecords, x, y, width, height) {
@@ -2162,23 +2273,11 @@ function canvasToBlob(canvas) {
   });
 }
 
-function canvasToPdfBlob(canvas) {
+function canvasToPdfBlob(canvasOrCanvases) {
+  const canvases = Array.isArray(canvasOrCanvases) ? canvasOrCanvases : [canvasOrCanvases];
   const pageWidth = 595.28;
   const pageHeight = 841.89;
   const pageMargin = 18;
-  const imageBytes = base64ToBytes(canvas.toDataURL("image/jpeg", 0.92).split(",")[1]);
-  const imageRatio = canvas.width / canvas.height;
-  const maxWidth = pageWidth - pageMargin * 2;
-  const maxHeight = pageHeight - pageMargin * 2;
-  let drawWidth = maxWidth;
-  let drawHeight = drawWidth / imageRatio;
-  if (drawHeight > maxHeight) {
-    drawHeight = maxHeight;
-    drawWidth = drawHeight * imageRatio;
-  }
-  const x = (pageWidth - drawWidth) / 2;
-  const y = (pageHeight - drawHeight) / 2;
-  const contents = `q\n${drawWidth.toFixed(2)} 0 0 ${drawHeight.toFixed(2)} ${x.toFixed(2)} ${y.toFixed(2)} cm\n/Im0 Do\nQ\n`;
   const chunks = [];
   const offsets = [0];
   let offset = 0;
@@ -2195,16 +2294,38 @@ function canvasToPdfBlob(canvas) {
 
   add("%PDF-1.4\n");
   addObject(["1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"]);
-  addObject(["2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"]);
-  addObject([
-    `3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Resources << /XObject << /Im0 4 0 R >> >> /Contents 5 0 R >>\nendobj\n`,
-  ]);
-  addObject([
-    `4 0 obj\n<< /Type /XObject /Subtype /Image /Width ${canvas.width} /Height ${canvas.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${imageBytes.length} >>\nstream\n`,
-    imageBytes,
-    "\nendstream\nendobj\n",
-  ]);
-  addObject([`5 0 obj\n<< /Length ${encoder.encode(contents).length} >>\nstream\n${contents}endstream\nendobj\n`]);
+  const pageIds = canvases.map((_, index) => 3 + index * 3);
+  addObject([`2 0 obj\n<< /Type /Pages /Kids [${pageIds.map((id) => `${id} 0 R`).join(" ")}] /Count ${canvases.length} >>\nendobj\n`]);
+
+  canvases.forEach((canvas, index) => {
+    const pageId = 3 + index * 3;
+    const imageId = pageId + 1;
+    const contentId = pageId + 2;
+    const imageName = `Im${index}`;
+    const imageBytes = base64ToBytes(canvas.toDataURL("image/jpeg", 0.92).split(",")[1]);
+    const imageRatio = canvas.width / canvas.height;
+    const maxWidth = pageWidth - pageMargin * 2;
+    const maxHeight = pageHeight - pageMargin * 2;
+    let drawWidth = maxWidth;
+    let drawHeight = drawWidth / imageRatio;
+    if (drawHeight > maxHeight) {
+      drawHeight = maxHeight;
+      drawWidth = drawHeight * imageRatio;
+    }
+    const x = (pageWidth - drawWidth) / 2;
+    const y = (pageHeight - drawHeight) / 2;
+    const contents = `q\n${drawWidth.toFixed(2)} 0 0 ${drawHeight.toFixed(2)} ${x.toFixed(2)} ${y.toFixed(2)} cm\n/${imageName} Do\nQ\n`;
+
+    addObject([
+      `${pageId} 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Resources << /XObject << /${imageName} ${imageId} 0 R >> >> /Contents ${contentId} 0 R >>\nendobj\n`,
+    ]);
+    addObject([
+      `${imageId} 0 obj\n<< /Type /XObject /Subtype /Image /Width ${canvas.width} /Height ${canvas.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${imageBytes.length} >>\nstream\n`,
+      imageBytes,
+      "\nendstream\nendobj\n",
+    ]);
+    addObject([`${contentId} 0 obj\n<< /Length ${encoder.encode(contents).length} >>\nstream\n${contents}endstream\nendobj\n`]);
+  });
 
   const xrefOffset = offset;
   add(`xref\n0 ${offsets.length}\n0000000000 65535 f \n`);
