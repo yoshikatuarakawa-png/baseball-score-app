@@ -76,6 +76,8 @@ const steals = document.querySelector("#steals");
 const stealsOther = document.querySelector("#stealsOther");
 const plateMemo = document.querySelector("#plateMemo");
 const statInclude = document.querySelector("#statInclude") || { checked: true, addEventListener() {} };
+const plateSubmitButton = document.querySelector("#plateSubmitButton");
+const cancelPlateEditButton = document.querySelector("#cancelPlateEditButton");
 const pitcherName = document.querySelector("#pitcherName");
 const pitchButtons = [...document.querySelectorAll(".pitch-button")];
 const undoPitchButton = document.querySelector("#undoPitchButton");
@@ -121,6 +123,7 @@ let summarySort = { key: "avg", direction: "desc" };
 let googleTokenClient = null;
 let googleAccessToken = "";
 let viewOnlyMode = false;
+let editingPlateRecordId = null;
 const baseRecords = Array.isArray(window.BASE_RECORDS) ? window.BASE_RECORDS : [];
 
 function makeNumberInput(className, label) {
@@ -370,7 +373,7 @@ function addTeamHit(teamKey, amount) {
   if (!amount) return;
   const hitInput = document.querySelector(`[data-team="${teamKey}"] .hits`);
   if (!hitInput) return;
-  hitInput.value = String(Number(hitInput.value || 0) + Number(amount || 0));
+  hitInput.value = String(Math.max(0, Number(hitInput.value || 0) + Number(amount || 0)));
 }
 
 function formatRate(numerator, denominator) {
@@ -390,26 +393,25 @@ function currentGameLabel() {
   return name || date || "未入力の試合";
 }
 
-function addPlateRecord(event) {
-  event.preventDefault();
-
+function buildPlateRecordFromForm(existingRecord = {}) {
   const name = playerName.value.trim();
-  if (!name) return;
+  if (!name) return null;
 
   const result = resultMap[plateResult.value];
   const lineupSpot = currentLineupSpot() || findLineupSpot(name);
   const starter = lineupSpot?.starter?.trim() || "";
   const isPinchHitter = Boolean(starter && name !== starter);
-  const record = {
-    id: Date.now(),
-    source: "added",
-    game: currentGameLabel(),
-    gameDate: gameDate.value,
+  return {
+    ...existingRecord,
+    id: existingRecord.id ?? Date.now(),
+    source: existingRecord.source || "added",
+    game: existingRecord.game || currentGameLabel(),
+    gameDate: existingRecord.gameDate || gameDate.value,
     team: battingTeam.value,
     countStats: statInclude.checked,
     batter: name,
-    battingOrder: lineupSpot?.order || "",
-    position: lineupSpot?.position || "",
+    battingOrder: lineupSpot?.order || battingOrder.value || "",
+    position: lineupSpot?.position || existingRecord.position || "",
     starter,
     isPinchHitter,
     resultKey: plateResult.value,
@@ -431,16 +433,84 @@ function addPlateRecord(event) {
     ob: result.ob,
     memo: plateMemo.value.trim(),
   };
+}
+
+function addPlateRecord(event) {
+  event.preventDefault();
+
+  const existingIndex = plateRecords.findIndex((record) => String(record.id) === String(editingPlateRecordId));
+  const existingRecord = existingIndex >= 0 ? plateRecords[existingIndex] : null;
+  if (editingPlateRecordId !== null && !existingRecord) {
+    alert("修正する打席が見つかりませんでした。もう一度、打席履歴から選び直してください。");
+    finishPlateEdit();
+    return;
+  }
+  const record = buildPlateRecordFromForm(existingRecord || {});
+  if (!record) return;
+
+  if (existingRecord) {
+    plateRecords[existingIndex] = record;
+    addTeamHit(existingRecord.team, -Number(existingRecord.hit || 0));
+    addTeamHit(record.team, Number(record.hit || 0));
+    finishPlateEdit();
+    renderRecords();
+    saveState();
+    setDriveStatus("打席を更新しました");
+    return;
+  }
 
   plateRecords.unshift(record);
   addTeamHit(record.team, record.hit);
   playerName.value = "";
-  moveToNextBatter(battingTeam.value, lineupSpot?.order);
+  moveToNextBatter(record.team, Number(record.battingOrder || battingOrder.value || 1));
   steals.value = "0";
   stealsOther.value = "0";
   plateMemo.value = "";
   renderRecords();
   saveState();
+}
+
+function resultKeyForRecord(record) {
+  if (record?.resultKey && resultMap[record.resultKey]) return record.resultKey;
+  const label = String(record?.result || "").replace(/^代打\s*/, "");
+  return Object.entries(resultMap).find(([, value]) => value.label === label)?.[0] || "out";
+}
+
+function startPlateEdit(recordId) {
+  const record = plateRecords.find((item) => String(item.id) === String(recordId));
+  if (!record) {
+    alert("この打席は現在入力中の試合に読み込むと修正できます。試合履歴の「編集」から開いてください。");
+    return;
+  }
+
+  editingPlateRecordId = record.id;
+  battingTeam.value = record.team || "away";
+  buildBattingOrderOptions();
+  battingOrder.value = String(record.battingOrder || "1");
+  playerName.value = record.batter || "";
+  plateResult.value = resultKeyForRecord(record);
+  steals.value = String(Number(record.steal || 0));
+  stealsOther.value = String(Number(record.stealOther || 0));
+  plateMemo.value = record.memo || "";
+  statInclude.checked = record.countStats !== false;
+  plateForm.classList.add("editing");
+  if (plateSubmitButton) plateSubmitButton.textContent = "打席を更新";
+  cancelPlateEditButton?.classList.remove("hidden");
+  updatePinchStatus();
+  setDriveStatus("打席を修正中");
+  document.querySelector("#plateSection")?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function finishPlateEdit() {
+  editingPlateRecordId = null;
+  plateForm.classList.remove("editing");
+  if (plateSubmitButton) plateSubmitButton.textContent = "打席を追加";
+  cancelPlateEditButton?.classList.add("hidden");
+  steals.value = "0";
+  stealsOther.value = "0";
+  plateMemo.value = "";
+  statInclude.checked = true;
+  syncBatterFromOrder();
 }
 
 function moveToNextBatter(teamKey, currentOrder) {
@@ -647,6 +717,7 @@ function renderRecords() {
     ? rowsForLog
         .map((record) => `
           <tr>
+            <td>${plateRecordActionCell(record)}</td>
             <td>${escapeHtml(record.game)}</td>
             <td>${escapeHtml(teamLabel(record.team || ""))}</td>
             <td>${escapeHtml(record.battingOrder || "")}</td>
@@ -666,10 +737,21 @@ function renderRecords() {
           </tr>
         `)
         .join("")
-    : `<tr class="empty-row"><td colspan="16">打席を追加するとここに履歴が出ます</td></tr>`;
+    : `<tr class="empty-row"><td colspan="17">打席を追加するとここに履歴が出ます</td></tr>`;
+
+  plateLogBody.querySelectorAll(".edit-plate-button").forEach((button) => {
+    button.addEventListener("click", () => startPlateEdit(button.dataset.plateRecordId));
+  });
 
   renderGameHistory();
   renderPitchCounts();
+}
+
+function plateRecordActionCell(record) {
+  const hasId = record.id !== undefined && record.id !== null;
+  const editable = hasId && record.source !== "base" && plateRecords.some((item) => String(item.id) === String(record.id));
+  if (!editable) return `<span class="muted-text">-</span>`;
+  return `<button class="detail-button edit-plate-button" type="button" data-plate-record-id="${escapeHtml(record.id)}">修正</button>`;
 }
 
 function compareSummaryRows(a, b) {
@@ -1173,6 +1255,7 @@ function resetCurrentGameFields() {
   pitcherCounts = {};
   lineups = createEmptyLineups();
   buildLineup();
+  finishPlateEdit();
   updateTotals();
   renderRecords();
   renderPitchCounts();
@@ -2786,6 +2869,10 @@ rankingImageButton?.addEventListener("click", shareRankingImage);
 saveGameButton.addEventListener("click", saveCurrentGame);
 newGameButton.addEventListener("click", resetCurrentGame);
 plateForm.addEventListener("submit", addPlateRecord);
+cancelPlateEditButton?.addEventListener("click", () => {
+  finishPlateEdit();
+  setDriveStatus("打席の修正を取り消しました");
+});
 closeGameDetailButton.addEventListener("click", () => gameDetailPanel.classList.add("hidden"));
 battingTeam.addEventListener("change", () => {
   battingOrder.value = "1";

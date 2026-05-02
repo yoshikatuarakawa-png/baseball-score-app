@@ -7,8 +7,8 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="野球スコア" />
     <title>野球スコア入力</title>
-    <link rel="stylesheet" href="styles.css?v=27" />
-    <link rel="manifest" href="manifest.webmanifest?v=27" />
+    <link rel="stylesheet" href="styles.css?v=28" />
+    <link rel="manifest" href="manifest.webmanifest?v=28" />
     <script src="https://accounts.google.com/gsi/client" async defer></script>
   </head>
   <body>
@@ -261,7 +261,8 @@
             <input id="statInclude" type="checkbox" checked />
             選手別成績に反映
           </label>
-          <button class="primary-button add-button" type="submit">打席を追加</button>
+          <button id="plateSubmitButton" class="primary-button add-button" type="submit">打席を追加</button>
+          <button id="cancelPlateEditButton" class="ghost-button add-button hidden" type="button">修正をやめる</button>
         </form>
       </section>
 
@@ -319,6 +320,7 @@
             <table class="records-table">
               <thead>
                 <tr>
+                  <th>操作</th>
                   <th>試合</th>
                   <th>チーム</th>
                   <th>打順</th>
@@ -381,11 +383,11 @@
       </section>
     </main>
 
-    <script src="base-data.js?v=27"></script>
-    <script src="app.js?v=27"></script>
+    <script src="base-data.js?v=28"></script>
+    <script src="app.js?v=28"></script>
     <script>
       if ("serviceWorker" in navigator && location.protocol !== "file:") {
-        navigator.serviceWorker.register("service-worker.js?v=27").then((registration) => registration.update());
+        navigator.serviceWorker.register("service-worker.js?v=28").then((registration) => registration.update());
       }
     </script>
   </body>
