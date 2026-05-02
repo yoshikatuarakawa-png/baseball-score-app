@@ -935,6 +935,11 @@ function addPitch(event) {
     return;
   }
 
+  if (pitchType === "strike" && currentCount.strikes >= 3) {
+    recordMatchupResult("lookK", { auto: true });
+    return;
+  }
+
   renderPitchCounts();
   saveState();
 }
