@@ -509,7 +509,13 @@ function recordMatchupResult(resultKey = matchupResult?.value || "out", options 
   if (matchupResult) matchupResult.value = selectedResult;
   statInclude.checked = true;
   const record = buildPlateRecordFromForm({});
-  if (!record) return;
+  if (!record) {
+    renderPitchCounts();
+    saveState();
+    playerName.focus();
+    setDriveStatus("打者を選んでから結果を記録してください。投球カウントは残しています。");
+    return false;
+  }
 
   plateRecords.unshift(record);
   addTeamHit(record.team, record.hit);
@@ -526,6 +532,7 @@ function recordMatchupResult(resultKey = matchupResult?.value || "out", options 
   saveState();
   const prefix = options.auto ? "自動で" : "";
   setDriveStatus(`${prefix}${record.batter}の${record.result}を記録しました。次は${currentBatterLabel()}です`);
+  return true;
 }
 
 function resultKeyForRecord(record) {
@@ -932,13 +939,25 @@ function addPitch(event) {
     countAfter: { ...currentCount },
   });
 
-  if (pitchType === "ball" && currentCount.balls >= 4) {
-    recordMatchupResult("walk", { auto: true });
+  const isBallFour = pitchType === "ball" && currentCount.balls >= 4;
+  const isStrikeThree = pitchType === "strike" && currentCount.strikes >= 3;
+
+  if (isBallFour || isStrikeThree) {
+    renderPitchCounts();
+    saveState();
+  }
+
+  if (isBallFour) {
+    if (!recordMatchupResult("walk", { auto: true })) {
+      setDriveStatus("4ボールを記録しました。打者を選んでから四球を記録してください。");
+    }
     return;
   }
 
-  if (pitchType === "strike" && currentCount.strikes >= 3) {
-    recordMatchupResult("swingK", { auto: true });
+  if (isStrikeThree) {
+    if (!recordMatchupResult("swingK", { auto: true })) {
+      setDriveStatus("3ストライク目を記録しました。打者を選んでから空振り三振を記録してください。");
+    }
     return;
   }
 
