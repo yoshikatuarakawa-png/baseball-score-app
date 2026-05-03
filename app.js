@@ -80,7 +80,7 @@ const statInclude = document.querySelector("#statInclude") || { checked: true, a
 const plateSubmitButton = document.querySelector("#plateSubmitButton");
 const cancelPlateEditButton = document.querySelector("#cancelPlateEditButton");
 const pitcherName = document.querySelector("#pitcherName");
-const pitchButtons = [...document.querySelectorAll(".pitch-button")];
+const pitchButtons = [...document.querySelectorAll(".pitch-button[data-pitch]")];
 const undoPitchButton = document.querySelector("#undoPitchButton");
 const resetCountButton = document.querySelector("#resetCountButton");
 const addOutButton = document.querySelector("#addOutButton") || { addEventListener() {} };
@@ -916,6 +916,7 @@ function addPitch(event) {
   }
 
   const pitchType = event.currentTarget.dataset.pitch;
+  if (!pitchType) return;
   currentCount = countForPitcher(pitcher);
   const countBefore = { ...currentCount };
   applyPitchToCount(pitchType);

@@ -1,11 +1,11 @@
-const CACHE_NAME = "baseball-score-v36";
+const CACHE_NAME = "baseball-score-v37";
 const APP_FILES = [
   "./",
   "./index.html",
-  "./styles.css?v=36",
-  "./app.js?v=36",
-  "./base-data.js?v=36",
-  "./manifest.webmanifest?v=36",
+  "./styles.css?v=37",
+  "./app.js?v=37",
+  "./base-data.js?v=37",
+  "./manifest.webmanifest?v=37",
 ];
 
 self.addEventListener("install", (event) => {
